@@ -116,7 +116,14 @@ const focusLatestBtn = document.querySelector("#focusLatestBtn");
 init();
 
 async function init() {
-  state.prompts = await fetch("./prompts.v1.core.json").then((res) => res.json());
+  try {
+    const res = await fetch("./prompts.v1.core.json");
+    if (!res.ok) throw new Error(`Fetch failed with status ${res.status}`);
+    state.prompts = await res.json();
+  } catch (err) {
+    console.error("Failed to load prompts:", err);
+    state.prompts = []; // Fallback to empty if file is missing or invalid
+  }
   updateViewportSize(true);
   applyAtlasTransform();
 
