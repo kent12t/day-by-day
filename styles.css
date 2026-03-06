@@ -509,12 +509,19 @@ h2 {
 }
 
 .history-item {
+  position: relative;
   border: 1px solid rgba(196, 208, 255, 0.2);
   border-radius: 12px;
   padding: 0.7rem;
   background: rgba(11, 18, 40, 0.6);
   display: grid;
   gap: 0.32rem;
+  cursor: pointer;
+}
+
+.history-item.active {
+  border-color: rgba(243, 203, 140, 0.7);
+  padding-right: 3rem;
 }
 
 .history-meta {
@@ -533,6 +540,82 @@ h2 {
   max-height: 170px;
   object-fit: cover;
   border-radius: 10px;
+}
+
+.history-delete-btn {
+  position: absolute;
+  right: 0.64rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(242, 151, 151, 0.54);
+  border-radius: 999px;
+  background: rgba(63, 23, 34, 0.9);
+  color: #ffd4d4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.history-delete-btn svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  stroke: currentColor;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(4, 8, 20, 0.56);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.confirm-modal {
+  width: min(360px, 92vw);
+  border: 1px solid rgba(196, 208, 255, 0.3);
+  border-radius: 16px;
+  background: rgba(10, 15, 35, 0.96);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.48);
+  padding: 1rem;
+}
+
+.confirm-modal h3 {
+  margin: 0;
+  font-family: "Instrument Serif", "Cormorant Garamond", serif;
+  font-size: 1.5rem;
+}
+
+.confirm-modal p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.confirm-actions .ghost-btn,
+.confirm-actions .danger-btn {
+  margin-top: 0;
+  width: 100%;
+}
+
+.danger-btn {
+  border: 1px solid rgba(250, 149, 149, 0.62);
+  border-radius: 999px;
+  background: rgba(97, 31, 41, 0.94);
+  color: #ffe2e2;
+  font-family: inherit;
+  padding: 0.45rem 0.86rem;
+  cursor: pointer;
 }
 
 .bottom-nav {

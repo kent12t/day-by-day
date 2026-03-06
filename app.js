@@ -62,6 +62,8 @@ const state = {
     clickBlocked: false,
   },
   latestNode: null,
+  activeMemoryId: "",
+  pendingDeleteId: "",
 };
 
 const viewSections = [...document.querySelectorAll(".view")];
@@ -93,6 +95,10 @@ const skyMeta = document.querySelector("#skyMeta");
 const historyList = document.querySelector("#historyList");
 const toast = document.querySelector("#toast");
 const atlasPopup = document.querySelector("#atlasPopup");
+const confirmOverlay = document.querySelector("#confirmOverlay");
+const confirmText = document.querySelector("#confirmText");
+const cancelDeleteBtn = document.querySelector("#cancelDeleteBtn");
+const confirmDeleteBtn = document.querySelector("#confirmDeleteBtn");
 
 const skyAtlas = document.querySelector("#skyAtlas");
 const worldLayer = document.querySelector("#worldLayer");
@@ -201,6 +207,29 @@ function bindEvents() {
     recenterLatestEntry();
   });
 
+  historyList.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest(".history-delete-btn");
+    if (deleteButton) {
+      event.stopPropagation();
+      openDeleteConfirm(deleteButton.dataset.entryId);
+      return;
+    }
+
+    const card = event.target.closest(".history-item");
+    if (!card) return;
+    state.activeMemoryId = state.activeMemoryId === card.dataset.entryId ? "" : card.dataset.entryId;
+    renderHistory();
+  });
+
+  cancelDeleteBtn.addEventListener("click", closeDeleteConfirm);
+  confirmDeleteBtn.addEventListener("click", deleteSelectedMemory);
+
+  confirmOverlay.addEventListener("click", (event) => {
+    if (event.target === confirmOverlay) {
+      closeDeleteConfirm();
+    }
+  });
+
   window.addEventListener("resize", () => {
     updateViewportSize(false);
     renderSkyAtlas();
@@ -267,6 +296,11 @@ function bindEvents() {
   window.addEventListener("pointerdown", (event) => {
     if (!event.target.closest("#skyAtlas") && !event.target.closest("#atlasPopup")) {
       hideAtlasPopup();
+    }
+
+    if (state.activeMemoryId && !event.target.closest("#historyList")) {
+      state.activeMemoryId = "";
+      renderHistory();
     }
   });
 }
@@ -727,7 +761,8 @@ function renderHistory() {
 
   latest.forEach((entry) => {
     const card = document.createElement("article");
-    card.className = "history-item";
+    card.className = `history-item ${entry.id === state.activeMemoryId ? "active" : ""}`;
+    card.dataset.entryId = entry.id;
 
     const meta = document.createElement("p");
     meta.className = "history-meta";
@@ -759,8 +794,58 @@ function renderHistory() {
       card.append(img);
     }
 
+    if (entry.id === state.activeMemoryId) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "history-delete-btn";
+      deleteBtn.dataset.entryId = entry.id;
+      deleteBtn.setAttribute("aria-label", "Delete memory");
+      deleteBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M7 6l1 14h8l1-14" /><path d="M10 10v6" /><path d="M14 10v6" /></svg>';
+      card.append(deleteBtn);
+    }
+
     historyList.append(card);
   });
+}
+
+function openDeleteConfirm(entryId) {
+  const entry = state.entries.find((item) => item.id === entryId);
+  if (!entry) return;
+
+  const day = new Date(entry.date).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+
+  state.pendingDeleteId = entryId;
+  confirmText.textContent = `Delete ${TOPIC_LABELS[entry.topic]} memory from ${day}? This cannot be undone.`;
+  confirmOverlay.classList.remove("hidden");
+}
+
+function closeDeleteConfirm() {
+  state.pendingDeleteId = "";
+  confirmOverlay.classList.add("hidden");
+}
+
+function deleteSelectedMemory() {
+  if (!state.pendingDeleteId) {
+    closeDeleteConfirm();
+    return;
+  }
+
+  const nextEntries = state.entries.filter((entry) => entry.id !== state.pendingDeleteId);
+  state.entries = nextEntries;
+  state.activeMemoryId = "";
+  persistEntries();
+  closeDeleteConfirm();
+
+  renderSkyAtlas();
+  renderHistory();
+  pickPrompt();
+  hideAtlasPopup();
+  showToast("Memory deleted.");
 }
 
 function zoomAtlas(delta, pointerX, pointerY) {

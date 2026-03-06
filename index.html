@@ -43,12 +43,16 @@
                   <stop offset="0%" stop-color="#080b1a" />
                   <stop offset="100%" stop-color="#111734" />
                 </linearGradient>
-                <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="4" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
+                <filter
+                  id="softGlow"
+                  x="-250%"
+                  y="-250%"
+                  width="600%"
+                  height="600%"
+                  filterUnits="objectBoundingBox"
+                  color-interpolation-filters="sRGB"
+                >
+                  <feDropShadow dx="0" dy="0" stdDeviation="2.8" flood-color="#ffdba0" flood-opacity="0.62" />
                 </filter>
                 <filter id="nebulaBlur" x="-100%" y="-100%" width="300%" height="300%">
                   <feGaussianBlur stdDeviation="16" />
@@ -142,6 +146,17 @@
       <button class="fab" data-go="reflect" type="button" aria-label="Add reflection"></button>
       <button class="nav-btn" data-go="memories" type="button">Memories</button>
     </nav>
+
+    <div id="confirmOverlay" class="confirm-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="confirm-modal">
+        <h3 id="confirmTitle">Delete memory?</h3>
+        <p id="confirmText">This reflection will be removed from your memories and sky atlas.</p>
+        <div class="confirm-actions">
+          <button id="cancelDeleteBtn" class="ghost-btn" type="button">Cancel</button>
+          <button id="confirmDeleteBtn" class="danger-btn" type="button">Delete</button>
+        </div>
+      </div>
+    </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
