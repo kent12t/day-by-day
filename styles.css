@@ -13,6 +13,10 @@
   --body: #8dd8c5;
   --gratitude: #d8a5f0;
   --dreams: #8fd8ff;
+  --creativity: #ffb347;
+  --nature: #90be6d;
+  --spirit: #9a8c98;
+  --legacy: #e29578;
   --wildcard: #ffe58f;
 }
 
@@ -434,6 +438,22 @@ h2 {
 
 .chip[data-topic="dreams"].active {
   box-shadow: inset 0 0 0 1px var(--dreams);
+}
+
+.chip[data-topic="creativity"].active {
+  box-shadow: inset 0 0 0 1px var(--creativity);
+}
+
+.chip[data-topic="nature"].active {
+  box-shadow: inset 0 0 0 1px var(--nature);
+}
+
+.chip[data-topic="spirit"].active {
+  box-shadow: inset 0 0 0 1px var(--spirit);
+}
+
+.chip[data-topic="legacy"].active {
+  box-shadow: inset 0 0 0 1px var(--legacy);
 }
 
 .chip[data-topic="wildcard"].active {

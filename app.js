@@ -12,6 +12,10 @@ const TOPIC_LABELS = {
   body: "Body",
   gratitude: "Gratitude",
   dreams: "Dreams",
+  creativity: "Creativity",
+  nature: "Nature",
+  spirit: "Spirit",
+  legacy: "Legacy",
   wildcard: "Wildcard",
 };
 
@@ -22,6 +26,10 @@ const TOPIC_COLORS = {
   body: "#8dd8c5",
   gratitude: "#d8a5f0",
   dreams: "#8fd8ff",
+  creativity: "#ffb347",
+  nature: "#90be6d",
+  spirit: "#9a8c98",
+  legacy: "#e29578",
   wildcard: "#ffe58f",
 };
 
@@ -32,9 +40,13 @@ const TOPIC_CENTERS = {
   body: [0.37, 0.61],
   gratitude: [0.49, 0.43],
   dreams: [0.79, 0.68],
+  creativity: [0.15, 0.75],
+  nature: [0.55, 0.85],
+  spirit: [0.10, 0.20],
+  legacy: [0.85, 0.15],
 };
 
-const DEPTHS = ["gentle", "deeper", "bold"];
+const DEPTHS = ["gentle", "deeper", "bold", "ethereal"];
 
 const state = {
   prompts: [],
@@ -721,7 +733,7 @@ function generateNode(entry, index) {
   const x = clamp(randomX + Math.sin(index * 0.29) * 30, 44, WORLD_WIDTH - 44);
   const y = clamp(randomY + Math.cos(index * 0.22) * 18, 40, WORLD_HEIGHT - 40);
 
-  const sizeByDepth = { gentle: 3.8, deeper: 5.2, bold: 6.4 };
+  const sizeByDepth = { gentle: 3.8, deeper: 5.2, bold: 6.4, ethereal: 7.8 };
   const size = sizeByDepth[entry.depth] + rng() * 1.6;
 
   const shapePick = Math.floor(rng() * 3);
