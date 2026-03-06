@@ -91,6 +91,7 @@ const customizeSubtitle = document.querySelector("#customizeSubtitle");
 const reflectionSettings = document.querySelector("#reflectionSettings");
 const topicList = document.querySelector("#topicList");
 const depthList = document.querySelector("#depthList");
+const promptKicker = document.querySelector("#promptKicker");
 const promptText = document.querySelector("#promptText");
 const followUpText = document.querySelector("#followUpText");
 const usePromptBtn = document.querySelector("#usePromptBtn");
@@ -462,6 +463,7 @@ function pickPrompt() {
   const index = Math.abs(seed) % pool.length;
 
   state.selectedPrompt = pool[index];
+  promptKicker.textContent = TOPIC_LABELS[state.selectedPrompt.topic] || "Prompt";
   promptText.textContent = state.selectedPrompt.text;
   followUpText.textContent = state.selectedPrompt.followUp || "";
 }
