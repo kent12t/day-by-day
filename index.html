@@ -17,7 +17,6 @@
 
     <main class="app-shell">
       <header class="title-wrap">
-        <p class="eyebrow">Mindful journaling companion</p>
         <h1>Day by Day</h1>
         <p class="subtitle">A moonlit atlas shaped by your reflections.</p>
       </header>
@@ -33,6 +32,7 @@
           <div class="atlas-controls">
             <button id="zoomOutBtn" class="glass-btn" type="button" aria-label="Zoom out">-</button>
             <button id="recenterBtn" class="glass-btn" type="button">Recenter</button>
+            <button id="focusLatestBtn" class="glass-btn" type="button">Latest Star</button>
             <button id="zoomInBtn" class="glass-btn" type="button" aria-label="Zoom in">+</button>
           </div>
 
@@ -40,8 +40,8 @@
             <svg id="skyAtlas" viewBox="0 0 1000 620" role="img" aria-label="Procedural sky you can pan and zoom">
               <defs>
                 <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#0d1126" />
-                  <stop offset="100%" stop-color="#161d3c" />
+                  <stop offset="0%" stop-color="#080b1a" />
+                  <stop offset="100%" stop-color="#111734" />
                 </linearGradient>
                 <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
                   <feGaussianBlur stdDeviation="4" result="blur" />
@@ -63,6 +63,7 @@
                 <g id="eventLayer"></g>
               </g>
             </svg>
+            <div id="atlasPopup" class="atlas-popup hidden"></div>
           </div>
         </article>
       </section>
@@ -81,24 +82,30 @@
             <p class="flip-kicker">Prompt</p>
             <p id="promptText" class="prompt-text">Take a breath, then reveal.</p>
             <p id="followUpText" class="follow-up"></p>
-            <button id="newPromptBtn" class="ghost-btn" type="button">Try another prompt</button>
+            <div class="prompt-actions">
+              <button id="usePromptBtn" class="primary-btn" type="button">Use this prompt</button>
+              <button id="customizeFromBackBtn" class="ghost-btn subdued" type="button">Customize reflection</button>
+              <button id="newPromptBtn" class="ghost-btn" type="button">Try another prompt</button>
+            </div>
           </div>
         </article>
 
         <article id="customizePanel" class="card journal-panel hidden">
           <div class="panel-top">
-            <h2>Customize</h2>
-            <p>Shape your reflection flow.</p>
+            <h2 id="customizeTitle">Customize</h2>
+            <p id="customizeSubtitle">Shape your reflection flow.</p>
           </div>
 
-          <div>
-            <p class="input-label">Topic</p>
-            <div id="topicList" class="topic-list" role="radiogroup" aria-label="Choose reflection topic"></div>
-          </div>
+          <div id="reflectionSettings" class="reflection-settings">
+            <div>
+              <p class="input-label">Topic</p>
+              <div id="topicList" class="topic-list" role="radiogroup" aria-label="Choose reflection topic"></div>
+            </div>
 
-          <div>
-            <p class="input-label">Depth</p>
-            <div id="depthList" class="depth-list" role="radiogroup" aria-label="Choose reflection depth"></div>
+            <div>
+              <p class="input-label">Depth</p>
+              <div id="depthList" class="depth-list" role="radiogroup" aria-label="Choose reflection depth"></div>
+            </div>
           </div>
 
           <div>
@@ -132,7 +139,7 @@
 
     <nav class="bottom-nav" aria-label="Primary">
       <button class="nav-btn active" data-go="atlas" type="button">Atlas</button>
-      <button class="fab" data-go="reflect" type="button" aria-label="Add reflection">+</button>
+      <button class="fab" data-go="reflect" type="button" aria-label="Add reflection"></button>
       <button class="nav-btn" data-go="memories" type="button">Memories</button>
     </nav>
 

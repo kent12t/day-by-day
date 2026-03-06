@@ -2,8 +2,6 @@ const STORAGE_KEY = "dayByDay.entries.v1";
 const PROMPT_ROTATION_KEY = "dayByDay.promptRotation.v1";
 const MILESTONES = new Set([7, 30, 100, 180, 365]);
 
-const VIEWPORT_WIDTH = 1000;
-const VIEWPORT_HEIGHT = 620;
 const WORLD_WIDTH = 1600;
 const WORLD_HEIGHT = 900;
 
@@ -52,26 +50,37 @@ const state = {
     zoom: 1,
     minZoom: 0.7,
     maxZoom: 2.7,
+    viewportWidth: 1000,
+    viewportHeight: 620,
     x: 0,
     y: 0,
     dragging: false,
     pointerId: null,
     lastX: 0,
     lastY: 0,
+    dragDistance: 0,
+    clickBlocked: false,
   },
+  latestNode: null,
 };
 
 const viewSections = [...document.querySelectorAll(".view")];
 const navButtons = [...document.querySelectorAll("[data-go]")];
+const reflectView = document.querySelector('.view[data-view="reflect"]');
 
 const promptFlipCard = document.querySelector("#promptFlipCard");
 const revealPromptBtn = document.querySelector("#revealPromptBtn");
 const customizeToggleBtn = document.querySelector("#customizeToggleBtn");
 const customizePanel = document.querySelector("#customizePanel");
+const customizeTitle = document.querySelector("#customizeTitle");
+const customizeSubtitle = document.querySelector("#customizeSubtitle");
+const reflectionSettings = document.querySelector("#reflectionSettings");
 const topicList = document.querySelector("#topicList");
 const depthList = document.querySelector("#depthList");
 const promptText = document.querySelector("#promptText");
 const followUpText = document.querySelector("#followUpText");
+const usePromptBtn = document.querySelector("#usePromptBtn");
+const customizeFromBackBtn = document.querySelector("#customizeFromBackBtn");
 const newPromptBtn = document.querySelector("#newPromptBtn");
 const modeList = document.querySelector("#modeList");
 const journalText = document.querySelector("#journalText");
@@ -83,6 +92,7 @@ const saveEntryBtn = document.querySelector("#saveEntryBtn");
 const skyMeta = document.querySelector("#skyMeta");
 const historyList = document.querySelector("#historyList");
 const toast = document.querySelector("#toast");
+const atlasPopup = document.querySelector("#atlasPopup");
 
 const skyAtlas = document.querySelector("#skyAtlas");
 const worldLayer = document.querySelector("#worldLayer");
@@ -95,12 +105,13 @@ const eventLayer = document.querySelector("#eventLayer");
 const zoomInBtn = document.querySelector("#zoomInBtn");
 const zoomOutBtn = document.querySelector("#zoomOutBtn");
 const recenterBtn = document.querySelector("#recenterBtn");
+const focusLatestBtn = document.querySelector("#focusLatestBtn");
 
 init();
 
 async function init() {
   state.prompts = await fetch("./prompts.v1.core.json").then((res) => res.json());
-  resetAtlasTransform();
+  updateViewportSize(true);
   applyAtlasTransform();
 
   renderTopics();
@@ -122,7 +133,15 @@ function bindEvents() {
   });
 
   customizeToggleBtn.addEventListener("click", () => {
-    customizePanel.classList.toggle("hidden");
+    toggleCustomizePanel("custom");
+  });
+
+  usePromptBtn.addEventListener("click", () => {
+    showCustomizePanel("quick");
+  });
+
+  customizeFromBackBtn.addEventListener("click", () => {
+    showCustomizePanel("custom");
   });
 
   topicList.addEventListener("click", (event) => {
@@ -145,6 +164,7 @@ function bindEvents() {
     state.promptRotation += 1;
     localStorage.setItem(PROMPT_ROTATION_KEY, String(state.promptRotation));
     pickPrompt();
+    resetPromptDecisionFlow();
   });
 
   modeList.addEventListener("click", (event) => {
@@ -174,6 +194,18 @@ function bindEvents() {
   recenterBtn.addEventListener("click", () => {
     resetAtlasTransform();
     applyAtlasTransform();
+    hideAtlasPopup();
+  });
+
+  focusLatestBtn.addEventListener("click", () => {
+    recenterLatestEntry();
+  });
+
+  window.addEventListener("resize", () => {
+    updateViewportSize(false);
+    renderSkyAtlas();
+    applyAtlasTransform();
+    hideAtlasPopup();
   });
 
   skyAtlas.addEventListener(
@@ -190,16 +222,19 @@ function bindEvents() {
     state.atlas.pointerId = event.pointerId;
     state.atlas.lastX = event.clientX;
     state.atlas.lastY = event.clientY;
+    state.atlas.dragDistance = 0;
     skyAtlas.classList.add("dragging");
     skyAtlas.setPointerCapture(event.pointerId);
+    hideAtlasPopup();
   });
 
   skyAtlas.addEventListener("pointermove", (event) => {
     if (!state.atlas.dragging || state.atlas.pointerId !== event.pointerId) return;
     const dx = event.clientX - state.atlas.lastX;
     const dy = event.clientY - state.atlas.lastY;
-    const viewUnitsX = (dx / skyAtlas.clientWidth) * VIEWPORT_WIDTH;
-    const viewUnitsY = (dy / skyAtlas.clientHeight) * VIEWPORT_HEIGHT;
+    state.atlas.dragDistance += Math.abs(dx) + Math.abs(dy);
+    const viewUnitsX = (dx / skyAtlas.clientWidth) * state.atlas.viewportWidth;
+    const viewUnitsY = (dy / skyAtlas.clientHeight) * state.atlas.viewportHeight;
 
     state.atlas.x += viewUnitsX;
     state.atlas.y += viewUnitsY;
@@ -212,13 +247,28 @@ function bindEvents() {
 
   const endDrag = (event) => {
     if (state.atlas.pointerId !== null && event.pointerId !== state.atlas.pointerId) return;
+
+    if (state.atlas.dragDistance > 6) {
+      state.atlas.clickBlocked = true;
+      setTimeout(() => {
+        state.atlas.clickBlocked = false;
+      }, 120);
+    }
+
     state.atlas.dragging = false;
     state.atlas.pointerId = null;
+    state.atlas.dragDistance = 0;
     skyAtlas.classList.remove("dragging");
   };
 
   skyAtlas.addEventListener("pointerup", endDrag);
   skyAtlas.addEventListener("pointercancel", endDrag);
+
+  window.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest("#skyAtlas") && !event.target.closest("#atlasPopup")) {
+      hideAtlasPopup();
+    }
+  });
 }
 
 function setActiveView(viewName) {
@@ -231,6 +281,61 @@ function setActiveView(viewName) {
   navButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.go === viewName && button.classList.contains("nav-btn"));
   });
+
+  if (viewName === "reflect") {
+    promptFlipCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function showCustomizePanel(mode = "custom") {
+  lockPromptCard();
+  applyCustomizeMode(mode);
+  customizePanel.classList.remove("hidden");
+  reflectView.classList.add("reflect-expanded");
+  customizePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function toggleCustomizePanel(mode = "custom") {
+  const willShow = customizePanel.classList.contains("hidden");
+  customizePanel.classList.toggle("hidden", !willShow);
+
+  if (willShow) {
+    lockPromptCard();
+    applyCustomizeMode(mode);
+    reflectView.classList.add("reflect-expanded");
+  } else {
+    unlockPromptCard();
+    reflectView.classList.remove("reflect-expanded");
+  }
+
+  if (willShow) {
+    customizePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function resetPromptDecisionFlow() {
+  customizePanel.classList.add("hidden");
+  reflectView.classList.remove("reflect-expanded");
+  unlockPromptCard();
+  applyCustomizeMode("custom");
+  promptFlipCard.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function lockPromptCard() {
+  promptFlipCard.classList.add("revealed", "locked");
+}
+
+function unlockPromptCard() {
+  promptFlipCard.classList.remove("locked");
+}
+
+function applyCustomizeMode(mode) {
+  const isQuick = mode === "quick";
+  reflectionSettings.classList.toggle("hidden", isQuick);
+  customizeTitle.textContent = isQuick ? "Use Prompt" : "Customize";
+  customizeSubtitle.textContent = isQuick
+    ? "Capture your reflection with this prompt."
+    : "Shape your reflection flow.";
 }
 
 function renderTopics() {
@@ -385,6 +490,7 @@ function renderSkyAtlas(newEntry) {
   eventLayer.innerHTML = "";
 
   const nodes = state.entries.map((entry, index) => generateNode(entry, index));
+  state.latestNode = nodes[nodes.length - 1] || null;
   const links = makeLinks(nodes);
 
   skyMeta.textContent = `${state.entries.length} reflection${state.entries.length === 1 ? "" : "s"} so far`;
@@ -406,11 +512,19 @@ function renderSkyAtlas(newEntry) {
   });
 
   nodes.forEach((node, index) => {
+    const entry = state.entries[index];
     const fill = TOPIC_COLORS[node.topic] || TOPIC_COLORS.self;
     const shape = makeNodeShape(node, fill);
     shape.classList.add("node");
     shape.style.animationDelay = `${(index % 9) * 0.31}s`;
     shape.setAttribute("filter", "url(#softGlow)");
+    shape.setAttribute("tabindex", "0");
+    shape.setAttribute("role", "button");
+    shape.setAttribute("aria-label", `${TOPIC_LABELS[node.topic]} entry`);
+    shape.addEventListener("click", (event) => {
+      if (state.atlas.clickBlocked) return;
+      showAtlasPopup(entry, event);
+    });
     nodeLayer.append(shape);
   });
 
@@ -509,17 +623,48 @@ function renderNebula(nodes) {
   });
 
   if (!nodes.length) {
+    renderWrappedAtlasHint("Your first reflection will light this atlas.");
+  }
+}
+
+function renderWrappedAtlasHint(message) {
+  const maxLineWidth = (state.atlas.viewportWidth * 0.74) / Math.max(state.atlas.zoom, 1);
+  const fontSize = clamp((state.atlas.viewportWidth * 0.052) / Math.max(state.atlas.zoom, 1), 18, 34);
+  const lines = wrapTextToWidth(message, maxLineWidth, fontSize * 0.54);
+  const lineHeight = fontSize * 1.2;
+  const startY = WORLD_HEIGHT / 2 - ((lines.length - 1) * lineHeight) / 2;
+
+  lines.forEach((line, index) => {
     const hint = createSvg("text", {
       x: String(WORLD_WIDTH / 2),
-      y: String(WORLD_HEIGHT / 2),
+      y: String(startY + index * lineHeight),
       fill: "rgba(234, 239, 255, 0.82)",
       "text-anchor": "middle",
-      "font-size": "32",
+      "font-size": String(fontSize),
       "font-family": "Cormorant Garamond, serif",
     });
-    hint.textContent = "Your first reflection will light this atlas.";
+    hint.textContent = line;
     nebulaLayer.append(hint);
-  }
+  });
+}
+
+function wrapTextToWidth(text, maxWidth, avgCharWidth) {
+  const words = text.trim().split(/\s+/);
+  const lines = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length * avgCharWidth <= maxWidth || !current) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  });
+
+  if (current) lines.push(current);
+  return lines;
 }
 
 function generateNode(entry, index) {
@@ -624,8 +769,8 @@ function zoomAtlas(delta, pointerX, pointerY) {
   const nextZoom = state.atlas.zoom;
 
   if (pointerX !== undefined && pointerY !== undefined && previousZoom !== nextZoom) {
-    const focusX = (pointerX / skyAtlas.clientWidth) * VIEWPORT_WIDTH;
-    const focusY = (pointerY / skyAtlas.clientHeight) * VIEWPORT_HEIGHT;
+    const focusX = (pointerX / skyAtlas.clientWidth) * state.atlas.viewportWidth;
+    const focusY = (pointerY / skyAtlas.clientHeight) * state.atlas.viewportHeight;
     state.atlas.x = focusX - ((focusX - state.atlas.x) / previousZoom) * nextZoom;
     state.atlas.y = focusY - ((focusY - state.atlas.y) / previousZoom) * nextZoom;
   }
@@ -636,16 +781,18 @@ function zoomAtlas(delta, pointerX, pointerY) {
 
 function resetAtlasTransform() {
   state.atlas.zoom = 1;
-  state.atlas.x = (VIEWPORT_WIDTH - WORLD_WIDTH) / 2;
-  state.atlas.y = (VIEWPORT_HEIGHT - WORLD_HEIGHT) / 2;
+  syncAtlasMinZoom();
+  state.atlas.zoom = Math.max(1, state.atlas.minZoom);
+  state.atlas.x = (state.atlas.viewportWidth - WORLD_WIDTH * state.atlas.zoom) / 2;
+  state.atlas.y = (state.atlas.viewportHeight - WORLD_HEIGHT * state.atlas.zoom) / 2;
 }
 
 function clampAtlasPosition() {
   const scaledWidth = WORLD_WIDTH * state.atlas.zoom;
   const scaledHeight = WORLD_HEIGHT * state.atlas.zoom;
 
-  const minX = Math.min(0, VIEWPORT_WIDTH - scaledWidth);
-  const minY = Math.min(0, VIEWPORT_HEIGHT - scaledHeight);
+  const minX = Math.min(0, state.atlas.viewportWidth - scaledWidth);
+  const minY = Math.min(0, state.atlas.viewportHeight - scaledHeight);
   const maxX = 0;
   const maxY = 0;
 
@@ -656,8 +803,67 @@ function clampAtlasPosition() {
 function applyAtlasTransform() {
   worldLayer.setAttribute(
     "transform",
-    `translate(${state.atlas.x.toFixed(2)} ${state.atlas.y.toFixed(2)}) scale(${state.atlas.zoom.toFixed(3)})`
+    `matrix(${state.atlas.zoom.toFixed(3)} 0 0 ${state.atlas.zoom.toFixed(3)} ${state.atlas.x.toFixed(2)} ${state.atlas.y.toFixed(2)})`
   );
+}
+
+function recenterLatestEntry() {
+  if (!state.latestNode) {
+    showToast("Add a reflection to focus on its star.");
+    return;
+  }
+
+  state.atlas.x = state.atlas.viewportWidth / 2 - state.atlas.zoom * state.latestNode.x;
+  state.atlas.y = state.atlas.viewportHeight / 2 - state.atlas.zoom * state.latestNode.y;
+  clampAtlasPosition();
+  applyAtlasTransform();
+  hideAtlasPopup();
+}
+
+function showAtlasPopup(entry, event) {
+  const day = new Date(entry.date).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  atlasPopup.innerHTML = `<p class="popup-topic">${TOPIC_LABELS[entry.topic]}</p><p class="popup-date">${day}</p>`;
+
+  const svgRect = skyAtlas.getBoundingClientRect();
+  const x = clamp(event.clientX - svgRect.left, 26, svgRect.width - 26);
+  const y = clamp(event.clientY - svgRect.top, 26, svgRect.height - 26);
+
+  atlasPopup.style.left = `${x}px`;
+  atlasPopup.style.top = `${y}px`;
+  atlasPopup.classList.remove("hidden");
+}
+
+function hideAtlasPopup() {
+  atlasPopup.classList.add("hidden");
+}
+
+function updateViewportSize(recenter) {
+  const width = Math.max(320, Math.round(skyAtlas.clientWidth));
+  const height = Math.max(280, Math.round(skyAtlas.clientHeight));
+
+  state.atlas.viewportWidth = width;
+  state.atlas.viewportHeight = height;
+  skyAtlas.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  syncAtlasMinZoom();
+
+  if (recenter) {
+    resetAtlasTransform();
+  } else {
+    state.atlas.zoom = Math.max(state.atlas.zoom, state.atlas.minZoom);
+    clampAtlasPosition();
+  }
+}
+
+function syncAtlasMinZoom() {
+  const coverX = state.atlas.viewportWidth / WORLD_WIDTH;
+  const coverY = state.atlas.viewportHeight / WORLD_HEIGHT;
+  state.atlas.minZoom = Math.max(0.7, coverX, coverY);
 }
 
 function persistEntries() {

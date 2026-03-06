@@ -2,9 +2,20 @@
 
 Minimal local-first journaling web app with a growing procedural "Sky Atlas" ecosystem.
 
-## Run
+## Run (Vite + HMR)
 
-Use any static server from this folder, for example:
+Install dependencies and run the dev server:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the URL shown by Vite (usually `http://localhost:5173`).
+
+## Static Option
+
+If you want a plain static server instead:
 
 ```bash
 python -m http.server 8080

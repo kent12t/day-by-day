@@ -73,6 +73,11 @@ h1 {
   font-size: clamp(2.25rem, 8.5vw, 3.4rem);
   font-style: italic;
   margin-top: 0.2rem;
+  background: linear-gradient(180deg, #fffef5 0%, #ffe9bf 54%, #ffd890 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 24px rgba(255, 223, 162, 0.2);
 }
 
 h2 {
@@ -98,6 +103,18 @@ h2 {
 .view[data-view="atlas"].active {
   display: flex;
   flex: 1;
+}
+
+.view[data-view="reflect"].active {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.92rem;
+  min-height: calc(100dvh - 13.5rem);
+}
+
+.view[data-view="reflect"].active.reflect-expanded {
+  justify-content: flex-start;
 }
 
 .sky-panel {
@@ -137,6 +154,7 @@ h2 {
 .atlas-controls {
   margin-top: 0.7rem;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -174,13 +192,14 @@ h2 {
 }
 
 .atlas-canvas {
+  position: relative;
   margin-top: 0.7rem;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(196, 208, 255, 0.34);
   touch-action: none;
   flex: 1;
-  min-height: clamp(360px, 58dvh, 760px);
+  min-height: clamp(420px, 66dvh, 840px);
 }
 
 #skyAtlas {
@@ -188,6 +207,34 @@ h2 {
   height: 100%;
   display: block;
   cursor: grab;
+  user-select: none;
+}
+
+.atlas-popup {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, calc(-100% - 10px));
+  border: 1px solid rgba(235, 208, 153, 0.64);
+  background: rgba(8, 12, 30, 0.94);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 0.5rem 0.66rem;
+  min-width: 148px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.44);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.atlas-popup .popup-topic {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.atlas-popup .popup-date {
+  margin: 0.18rem 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 #skyAtlas.dragging {
@@ -196,17 +243,41 @@ h2 {
 
 .flip-card {
   position: relative;
-  min-height: 260px;
-  overflow: hidden;
+  height: clamp(300px, 42dvh, 460px);
+  overflow: visible;
   perspective: 1200px;
 }
 
+.flip-card.locked {
+  height: auto;
+  min-height: 0;
+}
+
 .flip-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.58rem;
   backface-visibility: hidden;
   transition: transform 450ms ease, opacity 340ms ease;
 }
 
+.flip-face h2 {
+  margin-top: -0.08rem;
+  margin-bottom: 0;
+}
+
+.flip-front .helper-copy {
+  max-width: 34ch;
+  line-height: 1.2;
+  margin-top: 0;
+}
+
 .flip-front {
+  position: absolute;
+  inset: 0.9rem;
   transform: rotateY(0deg);
   opacity: 1;
 }
@@ -216,9 +287,10 @@ h2 {
   inset: 0.9rem;
   transform: rotateY(180deg);
   opacity: 0;
-  display: flex;
-  flex-direction: column;
   justify-content: center;
+  padding: 0.2rem 0.12rem;
+  overflow-y: auto;
+  overflow-x: visible;
 }
 
 .flip-card.revealed .flip-front {
@@ -229,6 +301,19 @@ h2 {
 .flip-card.revealed .flip-back {
   transform: rotateY(0deg);
   opacity: 1;
+}
+
+.flip-card.locked .flip-front {
+  display: none;
+}
+
+.flip-card.locked .flip-back {
+  position: relative;
+  inset: auto;
+  transform: none;
+  opacity: 1;
+  overflow: visible;
+  padding: 0.15rem 0.12rem;
 }
 
 .flip-kicker {
@@ -265,20 +350,42 @@ h2 {
 }
 
 .prompt-text {
-  margin: 0.45rem 0 0;
+  margin: 0;
   font-size: clamp(1.24rem, 5vw, 1.65rem);
   line-height: 1.28;
+  max-width: 36ch;
 }
 
 .follow-up {
-  margin: 0.5rem 0 0;
+  margin: 0;
   color: var(--muted);
+  max-width: 38ch;
+}
+
+.prompt-actions {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.12rem;
+  justify-items: center;
+  width: min(100%, 17.5rem);
+}
+
+.prompt-actions .primary-btn,
+.prompt-actions .ghost-btn {
+  margin-top: 0;
+  width: 100%;
+  white-space: nowrap;
 }
 
 .journal-panel {
-  margin-top: 0.8rem;
+  margin-top: 0;
   display: grid;
   gap: 0.8rem;
+}
+
+.reflection-settings {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .input-label {
@@ -351,6 +458,42 @@ h2 {
   gap: 0.5rem;
 }
 
+.photo-wrap input[type="file"] {
+  width: 100%;
+  display: block;
+  border: 1px solid rgba(196, 208, 255, 0.34);
+  border-radius: 12px;
+  background: rgba(14, 22, 48, 0.88);
+  color: var(--muted);
+  font: inherit;
+  line-height: 1.1;
+  padding: 0.28rem 0.36rem;
+}
+
+.photo-wrap input[type="file"]::file-selector-button {
+  border: 1px solid rgba(196, 208, 255, 0.42);
+  background: rgba(28, 40, 85, 0.97);
+  color: var(--text);
+  border-radius: 999px;
+  font: inherit;
+  line-height: 1;
+  padding: 0.42rem 0.82rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.photo-wrap input[type="file"]::-webkit-file-upload-button {
+  border: 1px solid rgba(196, 208, 255, 0.42);
+  background: rgba(28, 40, 85, 0.97);
+  color: var(--text);
+  border-radius: 999px;
+  font: inherit;
+  line-height: 1;
+  padding: 0.42rem 0.82rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
 .photo-preview {
   width: 100%;
   max-height: 300px;
@@ -403,14 +546,24 @@ h2 {
   border-radius: 999px;
   background: rgba(9, 14, 32, 0.86);
   backdrop-filter: blur(10px);
-  padding: 0.45rem;
+  padding: 0.34rem;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.45rem;
+  justify-items: stretch;
+  gap: 0.34rem;
+}
+
+.nav-btn {
+  min-height: 2.68rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.9rem;
 }
 
 .fab {
+  position: relative;
   border: none;
   border-radius: 999px;
   width: 2.6rem;
@@ -420,8 +573,6 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  line-height: 1;
   cursor: pointer;
   color: #241f22;
   background: linear-gradient(130deg, #ffdca0, #f6b27d);
@@ -429,8 +580,23 @@ h2 {
   transition: transform 180ms ease;
 }
 
+.fab::before,
+.fab::after {
+  content: "";
+  position: absolute;
+  width: 1.05rem;
+  height: 2px;
+  border-radius: 999px;
+  background: #241f22;
+}
+
+.fab::after {
+  transform: rotate(90deg);
+}
+
 .toast {
   position: fixed;
+  z-index: 20;
   left: 50%;
   bottom: 5.2rem;
   transform: translateX(-50%) translateY(14px);
