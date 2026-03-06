@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Day by Day</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true"></div>
+
+    <main class="app-shell">
+      <header class="title-wrap">
+        <p class="eyebrow">Mindful journaling companion</p>
+        <h1>Day by Day</h1>
+        <p class="subtitle">A moonlit atlas shaped by your reflections.</p>
+      </header>
+
+      <section class="view active" data-view="atlas" aria-label="Sky Atlas view">
+        <article class="card sky-panel">
+          <div class="panel-top">
+            <h2>Sky Atlas</h2>
+            <p id="skyMeta">0 reflections so far</p>
+          </div>
+          <p class="helper-copy">Drag to roam. Pinch trackpad or use +/- for zoom.</p>
+
+          <div class="atlas-controls">
+            <button id="zoomOutBtn" class="glass-btn" type="button" aria-label="Zoom out">-</button>
+            <button id="recenterBtn" class="glass-btn" type="button">Recenter</button>
+            <button id="zoomInBtn" class="glass-btn" type="button" aria-label="Zoom in">+</button>
+          </div>
+
+          <div class="atlas-canvas">
+            <svg id="skyAtlas" viewBox="0 0 1000 620" role="img" aria-label="Procedural sky you can pan and zoom">
+              <defs>
+                <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#0d1126" />
+                  <stop offset="100%" stop-color="#161d3c" />
+                </linearGradient>
+                <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                <filter id="nebulaBlur" x="-100%" y="-100%" width="300%" height="300%">
+                  <feGaussianBlur stdDeviation="16" />
+                </filter>
+              </defs>
+              <g id="worldLayer">
+                <rect x="0" y="0" width="1600" height="900" fill="url(#skyGradient)"></rect>
+                <g id="atmosphereLayer"></g>
+                <g id="nebulaLayer"></g>
+                <g id="linkLayer"></g>
+                <g id="nodeLayer"></g>
+                <g id="eventLayer"></g>
+              </g>
+            </svg>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" data-view="reflect" aria-label="Reflect view">
+        <article id="promptFlipCard" class="card flip-card" aria-live="polite">
+          <div class="flip-face flip-front">
+            <p class="flip-kicker">Today&apos;s reflection</p>
+            <h2>Unfold a small wonder</h2>
+            <p class="helper-copy">Turn the card when you are ready to meet a question worth sitting with.</p>
+            <button id="revealPromptBtn" class="primary-btn" type="button">Reveal today&apos;s prompt</button>
+            <button id="customizeToggleBtn" class="ghost-btn subdued" type="button">Customize today&apos;s reflection</button>
+          </div>
+
+          <div class="flip-face flip-back">
+            <p class="flip-kicker">Prompt</p>
+            <p id="promptText" class="prompt-text">Take a breath, then reveal.</p>
+            <p id="followUpText" class="follow-up"></p>
+            <button id="newPromptBtn" class="ghost-btn" type="button">Try another prompt</button>
+          </div>
+        </article>
+
+        <article id="customizePanel" class="card journal-panel hidden">
+          <div class="panel-top">
+            <h2>Customize</h2>
+            <p>Shape your reflection flow.</p>
+          </div>
+
+          <div>
+            <p class="input-label">Topic</p>
+            <div id="topicList" class="topic-list" role="radiogroup" aria-label="Choose reflection topic"></div>
+          </div>
+
+          <div>
+            <p class="input-label">Depth</p>
+            <div id="depthList" class="depth-list" role="radiogroup" aria-label="Choose reflection depth"></div>
+          </div>
+
+          <div>
+            <p class="input-label">Capture method</p>
+            <div id="modeList" class="mode-list" role="radiogroup" aria-label="How did you journal?">
+              <button class="mode-btn active" data-mode="offline" type="button">I wrote offline</button>
+              <button class="mode-btn" data-mode="text" type="button">Write here</button>
+              <button class="mode-btn" data-mode="photo" type="button">Add photo</button>
+            </div>
+            <textarea id="journalText" class="text-input hidden" rows="6" placeholder="Write whatever surfaced for you today..."></textarea>
+            <div id="photoInputWrap" class="photo-wrap hidden">
+              <input id="photoInput" type="file" accept="image/*" capture="environment" />
+              <img id="photoPreview" alt="Selected reflection" class="photo-preview hidden" />
+            </div>
+          </div>
+
+          <button id="saveEntryBtn" class="primary-btn" type="button">Add this reflection to my atlas</button>
+        </article>
+      </section>
+
+      <section class="view" data-view="memories" aria-label="Memories view">
+        <article class="card memories-panel">
+          <div class="panel-top">
+            <h2>Memories</h2>
+            <p>Recent moments in your sky.</p>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </article>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <button class="nav-btn active" data-go="atlas" type="button">Atlas</button>
+      <button class="fab" data-go="reflect" type="button" aria-label="Add reflection">+</button>
+      <button class="nav-btn" data-go="memories" type="button">Memories</button>
+    </nav>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

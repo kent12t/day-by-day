@@ -1,0 +1,380 @@
+[
+  {
+    "id": "self-gentle-1",
+    "topic": "self",
+    "depth": "gentle",
+    "text": "What feeling has visited me most often today?",
+    "followUp": "Where did I notice it in my body?"
+  },
+  {
+    "id": "self-gentle-2",
+    "topic": "self",
+    "depth": "gentle",
+    "text": "What did I need more of today: rest, kindness, or courage?",
+    "followUp": "What is one tiny way I can offer that to myself tonight?"
+  },
+  {
+    "id": "self-gentle-3",
+    "topic": "self",
+    "depth": "gentle",
+    "text": "If today had a weather pattern, what would it be?",
+    "followUp": "What changed the weather, even briefly?"
+  },
+  {
+    "id": "self-deeper-1",
+    "topic": "self",
+    "depth": "deeper",
+    "text": "Which story about myself felt loud today, and is it fully true?",
+    "followUp": "What softer, truer version might also belong?"
+  },
+  {
+    "id": "self-deeper-2",
+    "topic": "self",
+    "depth": "deeper",
+    "text": "When did I perform today, instead of being honest?",
+    "followUp": "What was I hoping to protect?"
+  },
+  {
+    "id": "self-deeper-3",
+    "topic": "self",
+    "depth": "deeper",
+    "text": "What part of me felt unseen today?",
+    "followUp": "How can I make room for that part tomorrow?"
+  },
+  {
+    "id": "self-bold-1",
+    "topic": "self",
+    "depth": "bold",
+    "text": "What truth have I been postponing because it may change my life?",
+    "followUp": "What is one safe first step toward it?"
+  },
+  {
+    "id": "self-bold-2",
+    "topic": "self",
+    "depth": "bold",
+    "text": "If I trusted myself 10% more, what would I do next?",
+    "followUp": "What fear would that action challenge?"
+  },
+  {
+    "id": "self-bold-3",
+    "topic": "self",
+    "depth": "bold",
+    "text": "What am I outgrowing right now?",
+    "followUp": "How would it feel to release it with gratitude?"
+  },
+  {
+    "id": "relationships-gentle-1",
+    "topic": "relationships",
+    "depth": "gentle",
+    "text": "Who made my day lighter, even in a small way?",
+    "followUp": "How can I show appreciation this week?"
+  },
+  {
+    "id": "relationships-gentle-2",
+    "topic": "relationships",
+    "depth": "gentle",
+    "text": "Where did I feel connected today?",
+    "followUp": "What helped that connection feel safe?"
+  },
+  {
+    "id": "relationships-gentle-3",
+    "topic": "relationships",
+    "depth": "gentle",
+    "text": "What conversation felt nourishing today?",
+    "followUp": "What made it different from usual?"
+  },
+  {
+    "id": "relationships-deeper-1",
+    "topic": "relationships",
+    "depth": "deeper",
+    "text": "What boundary did I honor or ignore today?",
+    "followUp": "What did that boundary reveal about my needs?"
+  },
+  {
+    "id": "relationships-deeper-2",
+    "topic": "relationships",
+    "depth": "deeper",
+    "text": "Where did I assume instead of asking?",
+    "followUp": "What question could open clarity?"
+  },
+  {
+    "id": "relationships-deeper-3",
+    "topic": "relationships",
+    "depth": "deeper",
+    "text": "What pattern repeats in my close relationships?",
+    "followUp": "What might this pattern be trying to teach me?"
+  },
+  {
+    "id": "relationships-bold-1",
+    "topic": "relationships",
+    "depth": "bold",
+    "text": "What hard conversation would strengthen trust if handled gently?",
+    "followUp": "What intention do I want to carry into it?"
+  },
+  {
+    "id": "relationships-bold-2",
+    "topic": "relationships",
+    "depth": "bold",
+    "text": "Where am I asking others to meet a need I have not named?",
+    "followUp": "How can I express that need clearly?"
+  },
+  {
+    "id": "relationships-bold-3",
+    "topic": "relationships",
+    "depth": "bold",
+    "text": "Who do I want to forgive, including myself?",
+    "followUp": "What would forgiveness make possible?"
+  },
+  {
+    "id": "work-gentle-1",
+    "topic": "work",
+    "depth": "gentle",
+    "text": "What task gave me quiet satisfaction today?",
+    "followUp": "What strengths did I use while doing it?"
+  },
+  {
+    "id": "work-gentle-2",
+    "topic": "work",
+    "depth": "gentle",
+    "text": "When did I feel focused today?",
+    "followUp": "What conditions helped me concentrate?"
+  },
+  {
+    "id": "work-gentle-3",
+    "topic": "work",
+    "depth": "gentle",
+    "text": "What progress did I make, however small?",
+    "followUp": "How can I celebrate progress over perfection?"
+  },
+  {
+    "id": "work-deeper-1",
+    "topic": "work",
+    "depth": "deeper",
+    "text": "What part of my work feels meaningful right now?",
+    "followUp": "How can I spend more time there this week?"
+  },
+  {
+    "id": "work-deeper-2",
+    "topic": "work",
+    "depth": "deeper",
+    "text": "What drains me at work, and what boundary could help?",
+    "followUp": "What is one realistic boundary I can test?"
+  },
+  {
+    "id": "work-deeper-3",
+    "topic": "work",
+    "depth": "deeper",
+    "text": "Where am I measuring worth by productivity?",
+    "followUp": "What healthier metric can I choose?"
+  },
+  {
+    "id": "work-bold-1",
+    "topic": "work",
+    "depth": "bold",
+    "text": "If fear of judgment disappeared, what would I create?",
+    "followUp": "What tiny prototype could I start this week?"
+  },
+  {
+    "id": "work-bold-2",
+    "topic": "work",
+    "depth": "bold",
+    "text": "What am I saying yes to that should be a no?",
+    "followUp": "How can I decline with clarity and care?"
+  },
+  {
+    "id": "work-bold-3",
+    "topic": "work",
+    "depth": "bold",
+    "text": "What would a deeply aligned work-life season look like?",
+    "followUp": "Which current habit does that vision ask me to shift?"
+  },
+  {
+    "id": "body-gentle-1",
+    "topic": "body",
+    "depth": "gentle",
+    "text": "How is my body asking for care today?",
+    "followUp": "What is one kind response I can offer?"
+  },
+  {
+    "id": "body-gentle-2",
+    "topic": "body",
+    "depth": "gentle",
+    "text": "When did I feel most physically at ease?",
+    "followUp": "Can I recreate one part of that moment tomorrow?"
+  },
+  {
+    "id": "body-gentle-3",
+    "topic": "body",
+    "depth": "gentle",
+    "text": "What sensation keeps showing up for me today?",
+    "followUp": "What might it be signaling?"
+  },
+  {
+    "id": "body-deeper-1",
+    "topic": "body",
+    "depth": "deeper",
+    "text": "What tension am I carrying that does not belong to this moment?",
+    "followUp": "How could I release even 5% of it now?"
+  },
+  {
+    "id": "body-deeper-2",
+    "topic": "body",
+    "depth": "deeper",
+    "text": "How do I treat my body when I feel behind?",
+    "followUp": "What would compassion look like instead?"
+  },
+  {
+    "id": "body-deeper-3",
+    "topic": "body",
+    "depth": "deeper",
+    "text": "Which routine supports my nervous system best?",
+    "followUp": "What helps me return to it consistently?"
+  },
+  {
+    "id": "body-bold-1",
+    "topic": "body",
+    "depth": "bold",
+    "text": "What belief about my body am I ready to unlearn?",
+    "followUp": "What kinder belief can replace it?"
+  },
+  {
+    "id": "body-bold-2",
+    "topic": "body",
+    "depth": "bold",
+    "text": "If I trusted my body as an ally, what would I change first?",
+    "followUp": "How can I practice that trust this week?"
+  },
+  {
+    "id": "body-bold-3",
+    "topic": "body",
+    "depth": "bold",
+    "text": "What does vitality mean for me beyond appearance?",
+    "followUp": "What choice tomorrow aligns with that meaning?"
+  },
+  {
+    "id": "gratitude-gentle-1",
+    "topic": "gratitude",
+    "depth": "gentle",
+    "text": "What ordinary moment felt quietly beautiful today?",
+    "followUp": "Why did this moment matter to me?"
+  },
+  {
+    "id": "gratitude-gentle-2",
+    "topic": "gratitude",
+    "depth": "gentle",
+    "text": "Who or what held me up today?",
+    "followUp": "How can I acknowledge that support?"
+  },
+  {
+    "id": "gratitude-gentle-3",
+    "topic": "gratitude",
+    "depth": "gentle",
+    "text": "What made me smile unexpectedly?",
+    "followUp": "How did that shift my day?"
+  },
+  {
+    "id": "gratitude-deeper-1",
+    "topic": "gratitude",
+    "depth": "deeper",
+    "text": "What challenge from the past now looks like a teacher?",
+    "followUp": "What did it quietly grow in me?"
+  },
+  {
+    "id": "gratitude-deeper-2",
+    "topic": "gratitude",
+    "depth": "deeper",
+    "text": "What am I taking for granted that deserves reverence?",
+    "followUp": "How can I honor it in action?"
+  },
+  {
+    "id": "gratitude-deeper-3",
+    "topic": "gratitude",
+    "depth": "deeper",
+    "text": "Where did I notice resilience in myself today?",
+    "followUp": "What helped me stay steady?"
+  },
+  {
+    "id": "gratitude-bold-1",
+    "topic": "gratitude",
+    "depth": "bold",
+    "text": "What part of my life would I grieve if it vanished tomorrow?",
+    "followUp": "How can I love it more intentionally now?"
+  },
+  {
+    "id": "gratitude-bold-2",
+    "topic": "gratitude",
+    "depth": "bold",
+    "text": "What gift has pain left me, however small?",
+    "followUp": "How can I hold that gift without romanticizing the pain?"
+  },
+  {
+    "id": "gratitude-bold-3",
+    "topic": "gratitude",
+    "depth": "bold",
+    "text": "What abundance already exists in my life that I keep overlooking?",
+    "followUp": "How can I notice it daily?"
+  },
+  {
+    "id": "dreams-gentle-1",
+    "topic": "dreams",
+    "depth": "gentle",
+    "text": "What dream feels quietly alive in me these days?",
+    "followUp": "What feeds it, even a little?"
+  },
+  {
+    "id": "dreams-gentle-2",
+    "topic": "dreams",
+    "depth": "gentle",
+    "text": "What made me curious today?",
+    "followUp": "Could that curiosity point somewhere meaningful?"
+  },
+  {
+    "id": "dreams-gentle-3",
+    "topic": "dreams",
+    "depth": "gentle",
+    "text": "If my future self sent a postcard from one year ahead, what would it say?",
+    "followUp": "What is one line from that postcard I can act on now?"
+  },
+  {
+    "id": "dreams-deeper-1",
+    "topic": "dreams",
+    "depth": "deeper",
+    "text": "What dream have I minimized to stay comfortable?",
+    "followUp": "What would honoring it look like this month?"
+  },
+  {
+    "id": "dreams-deeper-2",
+    "topic": "dreams",
+    "depth": "deeper",
+    "text": "What fear keeps me from beginning?",
+    "followUp": "Which part of that fear is protectiveness, not truth?"
+  },
+  {
+    "id": "dreams-deeper-3",
+    "topic": "dreams",
+    "depth": "deeper",
+    "text": "Where does my energy naturally rise when I imagine the future?",
+    "followUp": "How can I follow that energy this week?"
+  },
+  {
+    "id": "dreams-bold-1",
+    "topic": "dreams",
+    "depth": "bold",
+    "text": "If I could not fail, what would I attempt this year?",
+    "followUp": "What tiny experiment can begin this week?"
+  },
+  {
+    "id": "dreams-bold-2",
+    "topic": "dreams",
+    "depth": "bold",
+    "text": "What life am I secretly hoping to build?",
+    "followUp": "What habit today belongs to that life?"
+  },
+  {
+    "id": "dreams-bold-3",
+    "topic": "dreams",
+    "depth": "bold",
+    "text": "What would bravery look like in my creative life right now?",
+    "followUp": "Who could support me as I practice that bravery?"
+  }
+]
