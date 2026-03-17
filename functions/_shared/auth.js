@@ -1,6 +1,6 @@
 import { error } from "./json.js";
 
-const SESSION_COOKIE = "dayByDaySession";
+const DEFAULT_SESSION_COOKIE = "__Host-dayByDaySession";
 
 export async function createSession(context, userId) {
   if (!context.env.SESSIONS) {
@@ -15,39 +15,56 @@ export async function createSession(context, userId) {
     expirationTtl: ttlSeconds,
   });
 
-  const cookie = `${SESSION_COOKIE}=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ttlSeconds}`;
+  const cookie = buildCookie(context, sessionCookieName(context), sessionToken, ttlSeconds);
 
   return { cookie, expiresAt };
 }
 
 export async function requireUser(context) {
-  const token = getSessionToken(context.request);
+  const token = getSessionToken(context);
   if (!token) return { ok: false, response: error("UNAUTHORIZED", "Sign in to sync.", 401) };
   if (!context.env.SESSIONS) return { ok: false, response: error("SERVER_ERROR", "Session store not configured.", 500) };
 
+  const session = await getSession(context);
+  if (!session?.userId) {
+    return { ok: false, response: error("UNAUTHORIZED", "Invalid session.", 401) };
+  }
+
+  return { ok: true, userId: session.userId };
+}
+
+export async function getSession(context) {
+  const token = getSessionToken(context);
+  if (!token || !context.env.SESSIONS) return null;
   const value = await context.env.SESSIONS.get(token);
-  if (!value) return { ok: false, response: error("UNAUTHORIZED", "Session expired.", 401) };
+  if (!value) return null;
 
-  let parsed = null;
   try {
-    parsed = JSON.parse(value);
+    const parsed = JSON.parse(value);
+    if (!parsed?.userId || typeof parsed.userId !== "string") return null;
+    return {
+      token,
+      userId: parsed.userId,
+      expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : "",
+    };
   } catch {
-    return { ok: false, response: error("UNAUTHORIZED", "Invalid session.", 401) };
+    return null;
   }
-
-  if (!parsed?.userId) {
-    return { ok: false, response: error("UNAUTHORIZED", "Invalid session.", 401) };
-  }
-
-  return { ok: true, userId: parsed.userId };
 }
 
-export function getSessionToken(request) {
-  return readCookie(request.headers.get("cookie"), SESSION_COOKIE);
+export function getSessionToken(context) {
+  return readCookie(context.request.headers.get("cookie"), sessionCookieName(context));
 }
 
-export function buildClearedSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+export async function destroySession(context) {
+  if (!context.env.SESSIONS) return;
+  const token = getSessionToken(context);
+  if (!token) return;
+  await context.env.SESSIONS.delete(token);
+}
+
+export function buildClearedSessionCookie(context) {
+  return buildCookie(context, sessionCookieName(context), "", 0);
 }
 
 export async function sha256(value) {
@@ -68,6 +85,37 @@ export function randomToken(prefix = "") {
 
 function readCookie(cookieHeader, name) {
   if (!cookieHeader) return "";
-  const match = cookieHeader.match(new RegExp(`(?:^|; )${name}=([^;]+)`));
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = cookieHeader.match(new RegExp(`(?:^|; )${escapedName}=([^;]+)`));
   return match ? decodeURIComponent(match[1]) : "";
+}
+
+function sessionCookieName(context) {
+  const name = typeof context.env.SESSION_COOKIE_NAME === "string" ? context.env.SESSION_COOKIE_NAME.trim() : "";
+  return name || DEFAULT_SESSION_COOKIE;
+}
+
+function buildCookie(context, name, value, maxAge) {
+  const requestUrl = new URL(context.request.url);
+  const isSecure = requestUrl.protocol === "https:" || context.env.APP_ENV === "production";
+  const configuredSameSite = normalizeSameSite(context.env.SESSION_COOKIE_SAMESITE);
+  const sameSite = configuredSameSite === "None" && !isSecure ? "Lax" : configuredSameSite;
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "Path=/",
+    "HttpOnly",
+    `SameSite=${sameSite}`,
+    `Max-Age=${maxAge}`,
+  ];
+  if (isSecure) {
+    parts.push("Secure");
+  }
+  return parts.join("; ");
+}
+
+function normalizeSameSite(rawValue) {
+  const value = typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
+  if (value === "strict") return "Strict";
+  if (value === "none") return "None";
+  return "Lax";
 }

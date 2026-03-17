@@ -115,6 +115,8 @@ const exportDataBtn = document.querySelector("#exportDataBtn");
 const importDataBtn = document.querySelector("#importDataBtn");
 const importDataInput = document.querySelector("#importDataInput");
 const connectSyncBtn = document.querySelector("#connectSyncBtn");
+const connectSyncKeyBtn = document.querySelector("#connectSyncKeyBtn");
+const signOutSyncBtn = document.querySelector("#signOutSyncBtn");
 const syncNowBtn = document.querySelector("#syncNowBtn");
 const syncStatus = document.querySelector("#syncStatus");
 const toast = document.querySelector("#toast");
@@ -156,8 +158,10 @@ async function init() {
   pickPrompt();
   renderSkyAtlas();
   renderHistory();
+  await refreshAuthSession();
   renderSyncStatus();
   bindEvents();
+  handleAuthNotice();
 }
 
 function bindEvents() {
@@ -200,7 +204,11 @@ function bindEvents() {
 
   newPromptBtn.addEventListener("click", () => {
     state.promptRotation += 1;
-    localStorage.setItem(PROMPT_ROTATION_KEY, String(state.promptRotation));
+    try {
+      localStorage.setItem(PROMPT_ROTATION_KEY, String(state.promptRotation));
+    } catch (err) {
+      console.error("Failed to persist prompt rotation:", err);
+    }
     pickPrompt();
     resetPromptDecisionFlow();
   });
@@ -259,7 +267,9 @@ function bindEvents() {
   exportDataBtn.addEventListener("click", exportEntries);
   importDataBtn.addEventListener("click", () => importDataInput.click());
   importDataInput.addEventListener("change", importEntriesFromFile);
-  connectSyncBtn.addEventListener("click", connectSyncVault);
+  connectSyncBtn.addEventListener("click", connectSyncWithGoogle);
+  connectSyncKeyBtn.addEventListener("click", connectSyncWithKey);
+  signOutSyncBtn.addEventListener("click", signOutSync);
   syncNowBtn.addEventListener("click", syncNow);
 
   confirmOverlay.addEventListener("click", (event) => {
@@ -1136,9 +1146,14 @@ function normalizeEntry(entry) {
 function renderSyncStatus() {
   const isConnected = Boolean(state.sync?.connected);
   const isSyncing = Boolean(state.sync?.syncing);
+  const provider = state.sync?.provider === "google" ? "Google" : "sync key";
+  const providerDetail = state.sync?.email ? ` (${state.sync.email})` : "";
 
-  connectSyncBtn.textContent = isConnected ? "Sync connected" : "Connect sync";
+  connectSyncBtn.textContent = isConnected ? "Connected with Google" : "Connect with Google";
+  connectSyncBtn.disabled = isConnected;
   connectSyncBtn.classList.toggle("subdued", isConnected);
+  connectSyncKeyBtn.disabled = isSyncing;
+  signOutSyncBtn.classList.toggle("hidden", !isConnected || isSyncing);
   syncNowBtn.disabled = !isConnected || isSyncing;
   syncNowBtn.textContent = isSyncing ? "Syncing..." : "Sync now";
 
@@ -1149,14 +1164,23 @@ function renderSyncStatus() {
 
   if (state.sync.lastSyncedAt) {
     const stamp = new Date(state.sync.lastSyncedAt).toLocaleString();
-    syncStatus.textContent = `Connected. Last synced ${stamp}.`;
+    syncStatus.textContent = `Connected via ${provider}${providerDetail}. Last synced ${stamp}.`;
     return;
   }
 
-  syncStatus.textContent = "Connected. Your data stays local until you tap Sync now.";
+  syncStatus.textContent = `Connected via ${provider}${providerDetail}. Your data stays local until you tap Sync now.`;
 }
 
-async function connectSyncVault() {
+function connectSyncWithGoogle() {
+  if (state.sync.connected) {
+    showToast("Sync is already connected.");
+    return;
+  }
+
+  window.location.href = `${API_BASE}/auth/google/start`;
+}
+
+async function connectSyncWithKey() {
   if (state.sync.connected) {
     showToast("Sync is already connected.");
     return;
@@ -1191,6 +1215,8 @@ async function createSyncVault() {
     syncing: false,
     userId: res.userId,
     cursor: Number(res.cursor || 0),
+    provider: "sync_key",
+    email: "",
     lastSyncedAt: "",
     lastError: "",
   };
@@ -1214,10 +1240,68 @@ async function joinSyncVault(syncKey) {
     syncing: false,
     userId: res.userId,
     cursor: Number(res.cursor || 0),
+    provider: "sync_key",
+    email: "",
     lastError: "",
   };
   persistSyncMeta();
+  renderSyncStatus();
   showToast("Sync connected.");
+}
+
+async function signOutSync() {
+  try {
+    await apiFetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+    });
+  } catch (err) {
+    console.error("Sign out failed:", err);
+  }
+
+  state.sync = {
+    ...state.sync,
+    connected: false,
+    syncing: false,
+    provider: "",
+    email: "",
+    userId: "",
+    cursor: 0,
+    lastError: "",
+  };
+  persistSyncMeta();
+  renderSyncStatus();
+  showToast("Signed out of sync.");
+}
+
+async function refreshAuthSession() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      return;
+    }
+
+    const payload = await res.json();
+    if (!payload?.authenticated) {
+      return;
+    }
+
+    state.sync = {
+      ...state.sync,
+      connected: true,
+      syncing: false,
+      userId: typeof payload.userId === "string" ? payload.userId : state.sync.userId,
+      cursor: Number(payload.cursor || state.sync.cursor || 0),
+      provider: typeof payload.provider === "string" ? payload.provider : "",
+      email: typeof payload.email === "string" ? payload.email : "",
+      lastError: "",
+    };
+    persistSyncMeta();
+  } catch {
+    // Keep local-only mode when offline or unavailable.
+  }
 }
 
 async function syncNow() {
@@ -1245,6 +1329,13 @@ async function syncNow() {
   } catch (err) {
     console.error("Sync failed:", err);
     state.sync.lastError = err.message || "Sync failed";
+    if (/sign in|session/i.test(state.sync.lastError)) {
+      state.sync.connected = false;
+      state.sync.userId = "";
+      state.sync.provider = "";
+      state.sync.email = "";
+      state.sync.cursor = 0;
+    }
     persistSyncMeta();
     showToast("Sync failed. Try again.");
   } finally {
@@ -1414,6 +1505,8 @@ function loadSyncMeta() {
     syncing: false,
     userId: "",
     cursor: 0,
+    provider: "",
+    email: "",
     lastSyncedAt: "",
     lastError: "",
   };
@@ -1427,6 +1520,8 @@ function loadSyncMeta() {
       syncing: false,
       userId: typeof parsed.userId === "string" ? parsed.userId : "",
       cursor: Number(parsed.cursor || 0),
+      provider: typeof parsed.provider === "string" ? parsed.provider : "",
+      email: typeof parsed.email === "string" ? parsed.email : "",
       lastSyncedAt: typeof parsed.lastSyncedAt === "string" ? parsed.lastSyncedAt : "",
       lastError: typeof parsed.lastError === "string" ? parsed.lastError : "",
     };
@@ -1443,6 +1538,8 @@ function persistSyncMeta() {
         connected: state.sync.connected,
         userId: state.sync.userId,
         cursor: state.sync.cursor,
+        provider: state.sync.provider,
+        email: state.sync.email,
         lastSyncedAt: state.sync.lastSyncedAt,
         lastError: state.sync.lastError,
       })
@@ -1478,6 +1575,23 @@ function showToast(message) {
   setTimeout(() => {
     toast.classList.remove("visible");
   }, 1900);
+}
+
+function handleAuthNotice() {
+  const requestUrl = new URL(window.location.href);
+  const authState = requestUrl.searchParams.get("auth") || "";
+  if (!authState) return;
+
+  if (authState === "connected") {
+    showToast("Google sync connected.");
+  } else if (authState === "google_conflict") {
+    showToast("This Google account is linked to a different sync vault.");
+  } else if (authState.startsWith("google_")) {
+    showToast("Google sign-in was not completed.");
+  }
+
+  requestUrl.searchParams.delete("auth");
+  window.history.replaceState({}, "", requestUrl.toString());
 }
 
 function truncate(value, maxLength) {

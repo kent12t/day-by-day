@@ -5,6 +5,11 @@ compatibility_date = "2026-03-17"
 [vars]
 APP_ENV = "production"
 SESSION_TTL_SECONDS = "2592000"
+OAUTH_GOOGLE_CALLBACK_PATH = "/api/auth/google/callback"
+OAUTH_GOOGLE_SCOPES = "openid email profile"
+OAUTH_STATE_TTL_SECONDS = "600"
+SESSION_COOKIE_NAME = "__Host-dayByDaySession"
+SESSION_COOKIE_SAMESITE = "Lax"
 
 [[d1_databases]]
 binding = "DB"

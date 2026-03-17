@@ -42,6 +42,25 @@ npm run build
 npm run preview
 ```
 
+### Optional Google auth for sync
+
+Sync can be connected with Google OAuth using Cloudflare Pages Functions and KV sessions.
+
+Required secrets (set in Cloudflare Pages project settings or `.dev.vars` for local):
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `OAUTH_STATE_SECRET`
+
+Required vars are already scaffolded in `wrangler.toml` (callback path, cookie settings, and OAuth state TTL).
+
+Google OAuth redirect URI:
+
+- Production: `https://journal.pixelsmith.io/api/auth/google/callback`
+- Local Pages dev: `http://localhost:8788/api/auth/google/callback`
+
+Legacy sync-key connection remains available for recovery and migration.
+
 ## Privacy Note
 By default, all journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries unless you exported a backup.
 
