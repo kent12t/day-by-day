@@ -106,6 +106,9 @@ const saveEntryBtn = document.querySelector("#saveEntryBtn");
 
 const skyMeta = document.querySelector("#skyMeta");
 const historyList = document.querySelector("#historyList");
+const exportDataBtn = document.querySelector("#exportDataBtn");
+const importDataBtn = document.querySelector("#importDataBtn");
+const importDataInput = document.querySelector("#importDataInput");
 const toast = document.querySelector("#toast");
 const atlasPopup = document.querySelector("#atlasPopup");
 const confirmOverlay = document.querySelector("#confirmOverlay");
@@ -243,6 +246,10 @@ function bindEvents() {
 
   cancelDeleteBtn.addEventListener("click", closeDeleteConfirm);
   confirmDeleteBtn.addEventListener("click", deleteSelectedMemory);
+
+  exportDataBtn.addEventListener("click", exportEntries);
+  importDataBtn.addEventListener("click", () => importDataInput.click());
+  importDataInput.addEventListener("change", importEntriesFromFile);
 
   confirmOverlay.addEventListener("click", (event) => {
     if (event.target === confirmOverlay) {
@@ -869,6 +876,68 @@ function deleteSelectedMemory() {
   showToast("Memory deleted.");
 }
 
+function exportEntries() {
+  if (!state.entries.length) {
+    showToast("No memories to export yet.");
+    return;
+  }
+
+  const payload = {
+    app: "day-by-day",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    entries: state.entries,
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const fileDate = new Date().toISOString().slice(0, 10);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `day-by-day-backup-${fileDate}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  showToast("Memories exported.");
+}
+
+async function importEntriesFromFile() {
+  const file = importDataInput.files?.[0];
+  importDataInput.value = "";
+
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const importedEntries = normalizeImportedEntries(parsed);
+
+    if (!importedEntries.length) {
+      showToast("No valid memories found in file.");
+      return;
+    }
+
+    const mergedById = new Map();
+    state.entries.forEach((entry) => mergedById.set(entry.id, entry));
+    const sizeBefore = mergedById.size;
+    importedEntries.forEach((entry) => mergedById.set(entry.id, entry));
+    const addedCount = mergedById.size - sizeBefore;
+
+    state.entries = [...mergedById.values()].sort((a, b) => a.date.localeCompare(b.date));
+    persistEntries();
+    renderSkyAtlas();
+    renderHistory();
+    pickPrompt();
+    hideAtlasPopup();
+
+    showToast(`Imported ${addedCount} new memories.`);
+  } catch (err) {
+    console.error("Import failed:", err);
+    showToast("Could not import that file.");
+  }
+}
+
 function zoomAtlas(delta, pointerX, pointerY) {
   const previousZoom = state.atlas.zoom;
   state.atlas.zoom = clamp(state.atlas.zoom + delta, state.atlas.minZoom, state.atlas.maxZoom);
@@ -981,10 +1050,58 @@ function loadEntries() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return normalizeImportedEntries(parsed);
   } catch {
     return [];
   }
+}
+
+function normalizeImportedEntries(input) {
+  const source = Array.isArray(input) ? input : Array.isArray(input?.entries) ? input.entries : [];
+  const normalized = source
+    .map((entry) => normalizeEntry(entry))
+    .filter(Boolean)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const deduped = new Map();
+  normalized.forEach((entry) => {
+    deduped.set(entry.id, entry);
+  });
+
+  return [...deduped.values()];
+}
+
+function normalizeEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+
+  const promptId = typeof entry.promptId === "string" ? entry.promptId.trim() : "";
+  const promptText = typeof entry.promptText === "string" ? entry.promptText.trim() : "";
+  if (!promptId || !promptText) return null;
+
+  const mode = ["offline", "text", "photo"].includes(entry.mode) ? entry.mode : "offline";
+  const date = typeof entry.date === "string" && !Number.isNaN(Date.parse(entry.date)) ? entry.date : new Date().toISOString();
+  const topic = Object.prototype.hasOwnProperty.call(TOPIC_LABELS, entry.topic) ? entry.topic : "self";
+  const depth = DEPTHS.includes(entry.depth) ? entry.depth : "gentle";
+  const text = typeof entry.text === "string" ? entry.text : "";
+  const followUp = typeof entry.followUp === "string" ? entry.followUp : "";
+  const photoDataUrl = typeof entry.photoDataUrl === "string" ? entry.photoDataUrl : "";
+
+  const idCandidate = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "";
+  const fallbackId = `${date}-${Math.abs(hashString(`${promptId}-${promptText}-${text}-${photoDataUrl}`))}`;
+
+  return {
+    id: idCandidate || fallbackId,
+    date,
+    topic,
+    topicPicker: Object.prototype.hasOwnProperty.call(TOPIC_LABELS, entry.topicPicker) ? entry.topicPicker : topic,
+    depth,
+    promptId,
+    promptText,
+    followUp,
+    mode,
+    text,
+    photoDataUrl: mode === "photo" ? photoDataUrl : "",
+  };
 }
 
 function showToast(message) {

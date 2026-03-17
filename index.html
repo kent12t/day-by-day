@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Day by Day</title>
+    <link rel="icon" type="image/svg+xml" href="/moon-atlas-icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -135,6 +136,11 @@
           <div class="panel-top">
             <h2>Memories</h2>
             <p>Recent moments in your sky.</p>
+          </div>
+          <div class="memory-actions" role="group" aria-label="Backup controls">
+            <button id="exportDataBtn" class="glass-btn" type="button">Export memories</button>
+            <button id="importDataBtn" class="ghost-btn" type="button">Import memories</button>
+            <input id="importDataInput" type="file" accept="application/json" class="hidden" />
           </div>
           <div id="historyList" class="history-list"></div>
         </article>

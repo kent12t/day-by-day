@@ -528,6 +528,13 @@ h2 {
   margin-top: 0.7rem;
 }
 
+.memory-actions {
+  margin-top: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .history-item {
   position: relative;
   border: 1px solid rgba(196, 208, 255, 0.2);

@@ -43,7 +43,12 @@ npm run preview
 ```
 
 ## Privacy Note
-All journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries. For long-term preservation, it is recommended to occasionally export your data (feature coming soon) or keep the device's local storage intact.
+All journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries. For long-term preservation, use the **Export memories** action in the Memories view and keep your backup JSON file safe.
+
+### Backup and Restore
+- Open **Memories** to export your current entries as a JSON backup file.
+- Use **Import memories** to restore or merge entries from a prior backup.
+- Imports are validated and merged by entry ID to avoid accidental duplication.
 
 ---
 
