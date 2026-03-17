@@ -10,12 +10,12 @@ Most digital tools prioritize speed and capture. **Day by Day** is built for the
 
 ### Why this exists
 - **Visual Memory**: Instead of a linear list of dates, your reflections form a constellation. Proximity in the atlas is determined by topic and time, allowing you to see the "shape" of your life.
-- **Privacy as a Default**: Your reflections are yours. There are no accounts, no cloud sync, and no databases. Everything is stored locally on your device.
+- **Privacy as a Default**: Your reflections are yours. Local-only journaling works by default, and optional cloud sync is explicit opt-in.
 - **Curated Friction**: The app uses a "flip card" mechanic for prompts to encourage a moment of pause before you begin writing.
 
 ## Technology & Design Decisions
 
-- **Local-First Architecture**: Data is persisted via `localStorage`. This ensures the app works offline and maintains total user privacy.
+- **Local-First Architecture**: Data is persisted via `localStorage` for full offline use. Optional Cloudflare-backed sync can be connected manually when you want cross-device access.
 - **Procedural Cartography**: The Sky Atlas is generated using vanilla SVG and mathematical seeding. Links between stars are formed based on shared topics and temporal sequence.
 - **Minimalist Stack**: Built with vanilla JavaScript, CSS, and HTML5. Vite handles the build pipeline, keeping the footprint light and the performance high.
 - **Deterministic Prompts**: A curated library of prompts is selected based on a hash of the current date and your journaling history to ensure variety without repetition.
@@ -43,7 +43,9 @@ npm run preview
 ```
 
 ## Privacy Note
-All journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries. For long-term preservation, use the **Export memories** action in the Memories view and keep your backup JSON file safe.
+By default, all journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries unless you exported a backup.
+
+If you explicitly connect sync, entries are stored in Cloudflare D1 and photos are stored in Cloudflare R2 under your private sync vault. Sync never runs automatically until you tap **Sync now**.
 
 ### Backup and Restore
 - Open **Memories** to export your current entries as a JSON backup file.
