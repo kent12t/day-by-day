@@ -149,3 +149,68 @@ When adding lint/tests, keep scripts explicit in `package.json`:
 - Single-test by file and by test name should be documented in `README.md` and this file.
 
 Keep this AGENTS.md updated whenever commands, architecture, or standards change.
+
+## 12) OpenCode Subagents (`.opencode/agents/`)
+
+Specialized subagents that can be invoked via `@mention` in OpenCode or automatically by the Build agent.
+
+| Agent file | Name | Mode | Purpose |
+|---|---|---|---|
+| `cf-pages-deploy.md` | `cf-pages-deploy` | subagent | Cloudflare Pages config, wrangler, D1/KV/R2 bindings |
+| `auth-designer.md` | `auth-designer` | subagent | Plans free-tier auth (read-only until approved) |
+| `db-designer.md` | `db-designer` | subagent | D1 schema, migrations, Pages Functions API |
+| `privacy-guard.md` | `privacy-guard` | subagent | Privacy audit — read-only, produces PASS/WARN/FAIL report |
+| `atlas-renderer.md` | `atlas-renderer` | subagent | SVG Sky Atlas rendering and cartography logic |
+| `code-reviewer.md` | `code-reviewer` | subagent | Code quality + security review — read-only |
+
+### When to invoke each subagent
+
+- **`@cf-pages-deploy`** — any changes to `wrangler.toml`, Pages Functions, or CF service bindings.
+- **`@auth-designer`** — before starting auth implementation; get a plan first.
+- **`@db-designer`** — designing D1 schema, writing SQL migrations, or building API endpoints.
+- **`@privacy-guard`** — after any change that touches storage, network calls, or user data flow.
+- **`@atlas-renderer`** — changes to atlas rendering, star placement, or pan/zoom behavior.
+- **`@code-reviewer`** — before merging significant changes.
+
+---
+
+## 13) OpenCode Skills (`.opencode/skills/`)
+
+Reusable instruction sets loaded on-demand by agents via the `skill` tool.
+
+| Skill directory | Name | Description |
+|---|---|---|
+| `cf-free-stack/` | `cf-free-stack` | Cloudflare free-tier limits, config snippets, wrangler patterns |
+| `day-by-day-conventions/` | `day-by-day-conventions` | Code style, naming, entry schema, build/verify checklist |
+| `storage-migration/` | `storage-migration` | localStorage → D1 migration patterns, merge logic, photo R2 strategy |
+| `git-release/` | `git-release` | Versioning, release notes, tagging, Cloudflare Pages deploy verification |
+
+### Skill loading guidance
+
+- Agents that touch CF config should load `cf-free-stack` first.
+- Any agent editing `app.js`, `styles.css`, or `index.html` should load `day-by-day-conventions` first.
+- `storage-migration` is loaded by `db-designer` and `cf-pages-deploy` when designing sync.
+- `git-release` is loaded when preparing a tagged release.
+
+---
+
+## 14) Planned Architecture (Future State)
+
+When auth and online DB are implemented, the stack will be:
+
+```
+Browser (localStorage cache)
+    ↕  sync on login / explicit action
+Cloudflare Pages Functions (functions/api/)
+    ↕
+Cloudflare D1 (entries table, users table)   ← free: 5 GB, 5M reads/day
+Cloudflare KV (session tokens)               ← free: 100k reads/day
+Cloudflare R2 (photo blobs)                  ← free: 10 GB, 1M writes/month
+```
+
+Auth options under evaluation (all free, no paid services):
+- GitHub OAuth + D1 sessions (recommended for developer users)
+- Google OAuth + D1 sessions (widest coverage)
+- Magic links via Mailchannels (free via CF Workers, no API key needed)
+
+**All services must remain on Cloudflare free tier. No paid services.**
