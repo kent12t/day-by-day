@@ -1,26 +1,3 @@
 name = "day-by-day"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-03-17"
-
-[vars]
-APP_ENV = "production"
-SESSION_TTL_SECONDS = "2592000"
-OAUTH_GOOGLE_CALLBACK_PATH = "/api/auth/google/callback"
-OAUTH_GOOGLE_SCOPES = "openid email profile"
-OAUTH_STATE_TTL_SECONDS = "600"
-SESSION_COOKIE_NAME = "__Host-dayByDaySession"
-SESSION_COOKIE_SAMESITE = "Lax"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "day-by-day"
-database_id = "7334c912-7626-4033-8971-ecbd347a1ab3"
-migrations_dir = "migrations"
-
-[[kv_namespaces]]
-binding = "SESSIONS"
-id = "e491b4b07d264ca886ccf2e2cc71493f"
-
-[[r2_buckets]]
-binding = "PHOTOS"
-bucket_name = "day-by-day-photos"

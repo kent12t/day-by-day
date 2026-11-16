@@ -22,9 +22,7 @@ Load this skill before editing any file in the day-by-day repository.
 | Frontend | Vanilla JavaScript (ES modules), HTML5, CSS3 |
 | Build tool | Vite (port 3000 in dev) |
 | Hosting | Cloudflare Pages |
-| Storage (current) | Browser `localStorage` |
-| Storage (planned) | Cloudflare D1 + KV + R2 (free tier) |
-| Auth (planned) | OAuth (GitHub/Google) + D1 sessions |
+| Storage | Browser `localStorage` only (no backend, no accounts) |
 
 ---
 
@@ -71,7 +69,7 @@ Load this skill before editing any file in the day-by-day repository.
   topic: "string",        // slug-style, e.g. "gratitude", "creativity"
   mode: "text|photo|offline",
   text: "string|null",    // journal text content
-  photoDataUrl: "string|null", // base64 data URL (to be migrated to R2 URL)
+  photoDataUrl: "string|null", // base64 data URL stored locally
   prompt: "string"        // the prompt text shown to the user
 }
 ```

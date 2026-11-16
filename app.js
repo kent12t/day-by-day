@@ -1,8 +1,6 @@
 const STORAGE_KEY = "dayByDay.entries.v1";
 const PROMPT_ROTATION_KEY = "dayByDay.promptRotation.v1";
-const SYNC_META_KEY = "dayByDay.sync.meta.v1";
-const SYNC_DELETES_KEY = "dayByDay.sync.deletes.v1";
-const API_BASE = "/api";
+const LEGACY_SYNC_KEYS = ["dayByDay.sync.meta.v1", "dayByDay.sync.deletes.v1"];
 const MILESTONES = new Set([7, 30, 100, 180, 365]);
 
 const WORLD_WIDTH = 1600;
@@ -79,8 +77,6 @@ const state = {
   latestNode: null,
   activeMemoryId: "",
   pendingDeleteId: "",
-  pendingDeletes: loadPendingDeletes(),
-  sync: loadSyncMeta(),
 };
 
 const viewSections = [...document.querySelectorAll(".view")];
@@ -114,11 +110,6 @@ const historyList = document.querySelector("#historyList");
 const exportDataBtn = document.querySelector("#exportDataBtn");
 const importDataBtn = document.querySelector("#importDataBtn");
 const importDataInput = document.querySelector("#importDataInput");
-const connectSyncBtn = document.querySelector("#connectSyncBtn");
-const connectSyncKeyBtn = document.querySelector("#connectSyncKeyBtn");
-const signOutSyncBtn = document.querySelector("#signOutSyncBtn");
-const syncNowBtn = document.querySelector("#syncNowBtn");
-const syncStatus = document.querySelector("#syncStatus");
 const toast = document.querySelector("#toast");
 const atlasPopup = document.querySelector("#atlasPopup");
 const confirmOverlay = document.querySelector("#confirmOverlay");
@@ -142,6 +133,8 @@ const focusLatestBtn = document.querySelector("#focusLatestBtn");
 init();
 
 async function init() {
+  removeLegacySyncKeys();
+
   try {
     const res = await fetch("./prompts.v1.core.json");
     if (!res.ok) throw new Error(`Fetch failed with status ${res.status}`);
@@ -158,10 +151,7 @@ async function init() {
   pickPrompt();
   renderSkyAtlas();
   renderHistory();
-  await refreshAuthSession();
-  renderSyncStatus();
   bindEvents();
-  handleAuthNotice();
 }
 
 function bindEvents() {
@@ -267,10 +257,6 @@ function bindEvents() {
   exportDataBtn.addEventListener("click", exportEntries);
   importDataBtn.addEventListener("click", () => importDataInput.click());
   importDataInput.addEventListener("change", importEntriesFromFile);
-  connectSyncBtn.addEventListener("click", connectSyncWithGoogle);
-  connectSyncKeyBtn.addEventListener("click", connectSyncWithKey);
-  signOutSyncBtn.addEventListener("click", signOutSync);
-  syncNowBtn.addEventListener("click", syncNow);
 
   confirmOverlay.addEventListener("click", (event) => {
     if (event.target === confirmOverlay) {
@@ -886,11 +872,6 @@ function deleteSelectedMemory() {
     return;
   }
 
-  const deletedAt = new Date().toISOString();
-  state.pendingDeletes = state.pendingDeletes.filter((item) => item.id !== state.pendingDeleteId);
-  state.pendingDeletes.push({ id: state.pendingDeleteId, deletedAt });
-  persistPendingDeletes();
-
   const nextEntries = state.entries.filter((entry) => entry.id !== state.pendingDeleteId);
   state.entries = nextEntries;
   state.activeMemoryId = "";
@@ -1143,354 +1124,6 @@ function normalizeEntry(entry) {
   };
 }
 
-function renderSyncStatus() {
-  const isConnected = Boolean(state.sync?.connected);
-  const isSyncing = Boolean(state.sync?.syncing);
-  const provider = state.sync?.provider === "google" ? "Google" : "sync key";
-  const providerDetail = state.sync?.email ? ` (${state.sync.email})` : "";
-
-  connectSyncBtn.textContent = isConnected ? "Connected with Google" : "Connect with Google";
-  connectSyncBtn.disabled = isConnected;
-  connectSyncBtn.classList.toggle("subdued", isConnected);
-  connectSyncKeyBtn.disabled = isSyncing;
-  signOutSyncBtn.classList.toggle("hidden", !isConnected || isSyncing);
-  syncNowBtn.disabled = !isConnected || isSyncing;
-  syncNowBtn.textContent = isSyncing ? "Syncing..." : "Sync now";
-
-  if (!isConnected) {
-    syncStatus.textContent = "Local-only mode. Connect to sync across devices.";
-    return;
-  }
-
-  if (state.sync.lastSyncedAt) {
-    const stamp = new Date(state.sync.lastSyncedAt).toLocaleString();
-    syncStatus.textContent = `Connected via ${provider}${providerDetail}. Last synced ${stamp}.`;
-    return;
-  }
-
-  syncStatus.textContent = `Connected via ${provider}${providerDetail}. Your data stays local until you tap Sync now.`;
-}
-
-function connectSyncWithGoogle() {
-  if (state.sync.connected) {
-    showToast("Sync is already connected.");
-    return;
-  }
-
-  window.location.href = `${API_BASE}/auth/google/start`;
-}
-
-async function connectSyncWithKey() {
-  if (state.sync.connected) {
-    showToast("Sync is already connected.");
-    return;
-  }
-
-  const key = window.prompt("Enter your sync key to connect. Leave blank to create a new one.");
-  if (key === null) return;
-
-  try {
-    if (key.trim()) {
-      await joinSyncVault(key.trim());
-    } else {
-      await createSyncVault();
-    }
-    renderSyncStatus();
-  } catch (err) {
-    console.error("Sync connect failed:", err);
-    showToast("Could not connect sync.");
-  }
-}
-
-async function createSyncVault() {
-  const res = await apiFetch(`${API_BASE}/sync/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
-
-  state.sync = {
-    ...state.sync,
-    connected: true,
-    syncing: false,
-    userId: res.userId,
-    cursor: Number(res.cursor || 0),
-    provider: "sync_key",
-    email: "",
-    lastSyncedAt: "",
-    lastError: "",
-  };
-  persistSyncMeta();
-  renderSyncStatus();
-
-  window.prompt("Save this sync key in a safe place. You need it to reconnect on a new device.", res.syncKey);
-  showToast("Sync vault created.");
-}
-
-async function joinSyncVault(syncKey) {
-  const res = await apiFetch(`${API_BASE}/sync/session`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ syncKey }),
-  });
-
-  state.sync = {
-    ...state.sync,
-    connected: true,
-    syncing: false,
-    userId: res.userId,
-    cursor: Number(res.cursor || 0),
-    provider: "sync_key",
-    email: "",
-    lastError: "",
-  };
-  persistSyncMeta();
-  renderSyncStatus();
-  showToast("Sync connected.");
-}
-
-async function signOutSync() {
-  try {
-    await apiFetch(`${API_BASE}/auth/logout`, {
-      method: "POST",
-    });
-  } catch (err) {
-    console.error("Sign out failed:", err);
-  }
-
-  state.sync = {
-    ...state.sync,
-    connected: false,
-    syncing: false,
-    provider: "",
-    email: "",
-    userId: "",
-    cursor: 0,
-    lastError: "",
-  };
-  persistSyncMeta();
-  renderSyncStatus();
-  showToast("Signed out of sync.");
-}
-
-async function refreshAuthSession() {
-  try {
-    const res = await fetch(`${API_BASE}/auth/me`, {
-      credentials: "include",
-    });
-
-    if (!res.ok) {
-      return;
-    }
-
-    const payload = await res.json();
-    if (!payload?.authenticated) {
-      return;
-    }
-
-    state.sync = {
-      ...state.sync,
-      connected: true,
-      syncing: false,
-      userId: typeof payload.userId === "string" ? payload.userId : state.sync.userId,
-      cursor: Number(payload.cursor || state.sync.cursor || 0),
-      provider: typeof payload.provider === "string" ? payload.provider : "",
-      email: typeof payload.email === "string" ? payload.email : "",
-      lastError: "",
-    };
-    persistSyncMeta();
-  } catch {
-    // Keep local-only mode when offline or unavailable.
-  }
-}
-
-async function syncNow() {
-  if (!state.sync.connected) {
-    showToast("Connect sync first.");
-    return;
-  }
-
-  state.sync.syncing = true;
-  renderSyncStatus();
-
-  try {
-    await pushLocalChanges();
-    let pulledCount = 0;
-    do {
-      pulledCount = await pullRemoteChanges();
-    } while (pulledCount === 500);
-    state.sync.lastSyncedAt = new Date().toISOString();
-    state.sync.lastError = "";
-    persistSyncMeta();
-    persistEntries();
-    renderSkyAtlas();
-    renderHistory();
-    showToast("Sync complete.");
-  } catch (err) {
-    console.error("Sync failed:", err);
-    state.sync.lastError = err.message || "Sync failed";
-    if (/sign in|session/i.test(state.sync.lastError)) {
-      state.sync.connected = false;
-      state.sync.userId = "";
-      state.sync.provider = "";
-      state.sync.email = "";
-      state.sync.cursor = 0;
-    }
-    persistSyncMeta();
-    showToast("Sync failed. Try again.");
-  } finally {
-    state.sync.syncing = false;
-    renderSyncStatus();
-  }
-}
-
-async function pushLocalChanges() {
-  const entriesPayload = [];
-
-  for (const entry of state.entries) {
-    let uploadedPhotoKey = "";
-    if (entry.mode === "photo" && !entry.photoSynced && entry.photoDataUrl?.startsWith("data:")) {
-      uploadedPhotoKey = await uploadEntryPhoto(entry.id, entry.photoDataUrl);
-      if (uploadedPhotoKey) {
-        entry.photoSynced = true;
-      }
-    }
-    entriesPayload.push(serializeEntryForCloud(entry, uploadedPhotoKey));
-  }
-
-  const res = await apiFetch(`${API_BASE}/sync/push`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      entries: entriesPayload,
-      deletes: state.pendingDeletes,
-    }),
-  });
-
-  state.pendingDeletes = [];
-  persistPendingDeletes();
-  state.sync.cursor = Number(res.cursor || state.sync.cursor || 0);
-  persistSyncMeta();
-}
-
-function serializeEntryForCloud(entry, uploadedPhotoKey) {
-  const hasRemotePhoto =
-    Boolean(uploadedPhotoKey) ||
-    Boolean(entry.photoSynced) ||
-    (entry.mode === "photo" && Boolean(entry.photoDataUrl) && !entry.photoDataUrl.startsWith("data:"));
-
-  return {
-    id: entry.id,
-    date: entry.date,
-    topic: entry.topic,
-    topicPicker: entry.topicPicker,
-    depth: entry.depth,
-    promptId: entry.promptId,
-    promptText: entry.promptText,
-    followUp: entry.followUp,
-    mode: entry.mode,
-    text: entry.text,
-    updatedAt: entry.updatedAt || entry.date,
-    hasPhoto: hasRemotePhoto,
-    photoKey: uploadedPhotoKey || null,
-  };
-}
-
-async function uploadEntryPhoto(entryId, photoDataUrl) {
-  const res = await apiFetch(`${API_BASE}/photos/upload`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ entryId, photoDataUrl }),
-  });
-  return typeof res.photoKey === "string" ? res.photoKey : "";
-}
-
-async function pullRemoteChanges() {
-  const since = Number(state.sync.cursor || 0);
-  const res = await apiFetch(`${API_BASE}/sync/pull?since=${since}`);
-  const remoteChanges = Array.isArray(res.changes) ? res.changes : [];
-  if (!remoteChanges.length) {
-    state.sync.cursor = Number(res.cursor || since);
-    persistSyncMeta();
-    return 0;
-  }
-
-  const entryMap = new Map(state.entries.map((entry) => [entry.id, entry]));
-
-  remoteChanges.forEach((change) => {
-    if (change.op === "delete") {
-      entryMap.delete(change.id);
-      state.pendingDeletes = state.pendingDeletes.filter((item) => item.id !== change.id);
-      return;
-    }
-
-    const normalized = normalizeCloudEntry(change.entry);
-    if (!normalized) return;
-
-    const local = entryMap.get(normalized.id);
-    if (!local) {
-      entryMap.set(normalized.id, normalized);
-      return;
-    }
-
-    const localStamp = Date.parse(local.updatedAt || local.date);
-    const remoteStamp = Date.parse(normalized.updatedAt || normalized.date);
-    if (Number.isNaN(localStamp) || remoteStamp >= localStamp) {
-      entryMap.set(normalized.id, normalized);
-    }
-  });
-
-  state.entries = [...entryMap.values()].sort((a, b) => a.date.localeCompare(b.date));
-  persistPendingDeletes();
-  state.sync.cursor = Number(res.cursor || since);
-  persistSyncMeta();
-  return remoteChanges.length;
-}
-
-function normalizeCloudEntry(entry) {
-  if (!entry || typeof entry !== "object") return null;
-
-  return normalizeEntry({
-    id: entry.id,
-    date: entry.date,
-    topic: entry.topic,
-    topicPicker: entry.topicPicker,
-    depth: entry.depth,
-    promptId: entry.promptId,
-    promptText: entry.promptText,
-    followUp: entry.followUp,
-    mode: entry.mode,
-    text: entry.text,
-    photoDataUrl:
-      entry.mode === "photo" && entry.hasPhoto
-        ? `${API_BASE}/photos/view?entryId=${encodeURIComponent(entry.id)}`
-        : "",
-    photoSynced: entry.mode === "photo" && entry.hasPhoto,
-    updatedAt: entry.updatedAt,
-  });
-}
-
-async function apiFetch(url, options = {}) {
-  const res = await fetch(url, {
-    credentials: "include",
-    ...options,
-  });
-
-  let payload = null;
-  try {
-    payload = await res.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!res.ok || payload?.ok === false) {
-    const message = payload?.error?.message || `Request failed (${res.status})`;
-    throw new Error(message);
-  }
-
-  return payload;
-}
-
 function loadPromptRotation() {
   try {
     return Number(localStorage.getItem(PROMPT_ROTATION_KEY) || 0);
@@ -1499,73 +1132,11 @@ function loadPromptRotation() {
   }
 }
 
-function loadSyncMeta() {
-  const defaults = {
-    connected: false,
-    syncing: false,
-    userId: "",
-    cursor: 0,
-    provider: "",
-    email: "",
-    lastSyncedAt: "",
-    lastError: "",
-  };
-
+function removeLegacySyncKeys() {
   try {
-    const raw = localStorage.getItem(SYNC_META_KEY);
-    if (!raw) return defaults;
-    const parsed = JSON.parse(raw);
-    return {
-      connected: Boolean(parsed.connected),
-      syncing: false,
-      userId: typeof parsed.userId === "string" ? parsed.userId : "",
-      cursor: Number(parsed.cursor || 0),
-      provider: typeof parsed.provider === "string" ? parsed.provider : "",
-      email: typeof parsed.email === "string" ? parsed.email : "",
-      lastSyncedAt: typeof parsed.lastSyncedAt === "string" ? parsed.lastSyncedAt : "",
-      lastError: typeof parsed.lastError === "string" ? parsed.lastError : "",
-    };
-  } catch {
-    return defaults;
-  }
-}
-
-function persistSyncMeta() {
-  try {
-    localStorage.setItem(
-      SYNC_META_KEY,
-      JSON.stringify({
-        connected: state.sync.connected,
-        userId: state.sync.userId,
-        cursor: state.sync.cursor,
-        provider: state.sync.provider,
-        email: state.sync.email,
-        lastSyncedAt: state.sync.lastSyncedAt,
-        lastError: state.sync.lastError,
-      })
-    );
+    LEGACY_SYNC_KEYS.forEach((key) => localStorage.removeItem(key));
   } catch (err) {
-    console.error("Failed to persist sync meta:", err);
-  }
-}
-
-function loadPendingDeletes() {
-  try {
-    const raw = localStorage.getItem(SYNC_DELETES_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item) => item && typeof item.id === "string" && typeof item.deletedAt === "string");
-  } catch {
-    return [];
-  }
-}
-
-function persistPendingDeletes() {
-  try {
-    localStorage.setItem(SYNC_DELETES_KEY, JSON.stringify(state.pendingDeletes));
-  } catch (err) {
-    console.error("Failed to persist pending deletes:", err);
+    console.error("Failed to remove legacy sync keys:", err);
   }
 }
 
@@ -1575,23 +1146,6 @@ function showToast(message) {
   setTimeout(() => {
     toast.classList.remove("visible");
   }, 1900);
-}
-
-function handleAuthNotice() {
-  const requestUrl = new URL(window.location.href);
-  const authState = requestUrl.searchParams.get("auth") || "";
-  if (!authState) return;
-
-  if (authState === "connected") {
-    showToast("Google sync connected.");
-  } else if (authState === "google_conflict") {
-    showToast("This Google account is linked to a different sync vault.");
-  } else if (authState.startsWith("google_")) {
-    showToast("Google sign-in was not completed.");
-  }
-
-  requestUrl.searchParams.delete("auth");
-  window.history.replaceState({}, "", requestUrl.toString());
 }
 
 function truncate(value, maxLength) {
