@@ -36,6 +36,30 @@ If you wish to run the project locally or explore the code:
    ```
 4. Open the local address provided by Vite (`http://localhost:3000`).
 
+### Checks and tests
+
+| Command | What it does |
+|---|---|
+| `npm run lint` / `npm run lint:fix` | ESLint (`eslint.config.js`) |
+| `npm run format` / `npm run format:check` | Prettier (`.prettierrc.json`) |
+| `npm run check:prompts` | Validates `public/prompts.v1.core.json` (unique ids, known topic/depth, text, followUp) |
+| `npm test` | Vitest unit tests in `tests/unit/` |
+| `npm run test:watch` | Vitest in watch mode |
+| `npm run test:coverage` | Unit tests with V8 coverage (`coverage/`) |
+| `npm run test:e2e` | Builds, serves `vite preview` on port 4193 and runs the Playwright smoke test in `tests/e2e/` |
+
+Run a single unit test file, or tests matching a name:
+```bash
+npm test -- tests/unit/prompt-logic.test.js
+npm test -- -t "pickRankedPrompt"
+npm run test:e2e -- -g "offline reflection"
+```
+
+The first e2e run on a new machine needs a browser: `npx playwright install chromium` (or point
+`PW_CHROMIUM_PATH` at an existing Chromium). CI (`.github/workflows/ci.yml`) runs lint, the prompt check, unit
+tests, the build and the e2e smoke test on every push and pull request. `format:check` is not part of CI yet,
+because existing files have not been reformatted with Prettier; format only the files you add.
+
 ### Deployment
 This project is deployed as a static site on Cloudflare Pages (see `wrangler.toml`). There is no backend. To build and preview:
 ```bash

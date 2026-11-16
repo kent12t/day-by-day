@@ -25,6 +25,9 @@ Follow it when planning, editing, testing, and validating changes.
   - `atlas-view.js` the painted `<canvas>` layer behind the SVG and the crisp star cores, ink links, burst and comet.
   - Bump `PAINT_VERSION` in `sky-painter.js` whenever the scene or brush changes. Painting code must never use `Math.random`.
 - `wrangler.toml`: Cloudflare Pages output settings.
+- `scripts/check-prompts.mjs`: prompt dataset validator.
+- `tests/unit/`: Vitest unit tests; `tests/e2e/`: Playwright smoke test.
+- `eslint.config.js`, `.prettierrc.json`, `vitest.config.js`, `playwright.config.js`, `.github/workflows/ci.yml`: tooling.
 - `README.md`: philosophy, architecture intent, local dev notes.
 
 ## 3) Build / Dev / Lint / Test Commands
@@ -41,19 +44,41 @@ Follow it when planning, editing, testing, and validating changes.
 - The service worker exists only in builds: verify offline behaviour with `npm run build && npm run preview`, not `npm run dev`.
 - Regenerate icons after editing the SVG: `node scripts/generate-icons.cjs` (requires Playwright + Chromium).
 
-### Linting / formatting status
-- No ESLint, Prettier, or stylelint config exists today.
-- Before introducing tooling, keep changes minimal and consistent with current style.
+### Linting / formatting
+- `npm run lint` — ESLint (flat config in `eslint.config.js`). Must pass (warnings allowed, errors not).
+- `npm run lint:fix` — ESLint with autofix.
+- `npm run format` / `npm run format:check` — Prettier (`.prettierrc.json`: double quotes, semicolons, 2 spaces, printWidth 120).
+- Existing files are not Prettier-formatted yet, so `format:check` is **not** part of CI. Do not run `npm run format`
+  over the whole repo in a feature change; format only files you create (e.g. `npx prettier --write tests/unit/foo.test.js`).
 
-### Testing status
-- No automated test runner is configured yet.
-- There are no `*.test.*` or `*.spec.*` files in this repo.
+### Prompt dataset
+- `npm run check:prompts` — validates `public/prompts.v1.core.json` (unique ids, topic is one of the 10 topics,
+  depth is gentle/deeper/bold/ethereal, non-empty `text`, string `followUp`). Also runs inside `npm test`.
+
+### Unit tests (Vitest)
+- `npm test` — run all unit tests once (`tests/unit/**/*.test.js`, config in `vitest.config.js`).
+- `npm run test:watch` — watch mode.
+- `npm run test:coverage` — with V8 coverage (`coverage/`).
+- Tests run in Node; a file that needs a DOM starts with `// @vitest-environment jsdom`.
+  `fake-indexeddb` backs the photo-store tests; the native `canvas` package backs the full atlas paint test
+  (skipped automatically if `canvas` cannot load).
+- Only pure modules in `lib/`, `atlas/` and `scripts/` are unit-tested. `app.js` runs side effects on import, so
+  its functions (e.g. entry normalisation / import merge) are covered by the e2e smoke test instead.
 
 ### Running a single test (important)
-- Not available yet because no test framework is installed.
-- If tests are added later (recommended: Vitest), use patterns like:
-- `npm run test -- app.test.js`
-- `npm run test -- -t "saveEntry"`
+- By file: `npm test -- tests/unit/prompt-logic.test.js` (any path substring works: `npm test -- memories`).
+- By test name: `npm test -- -t "pickRankedPrompt"` (matches `describe`/`it` names; combine with a file filter).
+- Single e2e test by name: `npm run test:e2e -- -g "offline reflection"`.
+
+### End-to-end smoke test (Playwright)
+- `npm run test:e2e` — builds, serves `vite preview` on port 4193 and runs `tests/e2e/*.spec.js` in Chromium
+  (config in `playwright.config.js`, traces off). Service workers are blocked in e2e for determinism.
+- First run on a new machine: `npx playwright install chromium`. To use a preinstalled browser instead, set
+  `PW_CHROMIUM_PATH=/path/to/chrome`.
+
+### CI
+- `.github/workflows/ci.yml` runs on push and pull_request (Node 20): `npm ci`, `lint`, `check:prompts`, `test`,
+  `build`, then `test:e2e`.
 
 ## 4) Manual Verification Checklist (Current Reality)
 When behavior changes, run `npm run dev` and verify:
@@ -136,15 +161,14 @@ When behavior changes, run `npm run dev` and verify:
 Useful opportunities for future work:
 - Data export (README calls this "feature coming soon").
 - Data import/restore flow for backups or device migration.
-- Automated test suite (unit + UI interaction smoke tests).
-- Lint/format toolchain for consistency at scale.
+- Broader UI test coverage (photo capture, delete, import/export) beyond the current smoke test.
+- Apply Prettier across existing files in one dedicated change, then add `format:check` to CI.
 - Optional encrypted backup strategy while preserving privacy defaults.
-- Prompt content governance (schema validation + check scripts).
 
 ## 9) Suggested Agent Workflow
 - Read `README.md` and relevant files before editing.
 - Make focused changes; avoid broad refactors unless requested.
-- Run `npm run build` after meaningful code edits.
+- Run `npm run lint`, `npm test` and `npm run build` after meaningful code edits; `npm run test:e2e` when UI flows change.
 - If behavior changed, complete manual checks from section 4.
 - In final notes, report commands run and user-visible impact.
 
@@ -154,11 +178,18 @@ Useful opportunities for future work:
 - Do not break mobile layout or bottom navigation ergonomics.
 - Do not weaken delete confirmation safeguards.
 
-## 11) If You Add Tooling Later
-When adding lint/tests, keep scripts explicit in `package.json`:
-- `lint`, `lint:fix`
-- `test`, `test:watch`, `test:coverage`
-- Single-test by file and by test name should be documented in `README.md` and this file.
+## 11) Tooling
+Scripts are explicit in `package.json` and documented in section 3 and `README.md`:
+- `lint`, `lint:fix` (ESLint), `format`, `format:check` (Prettier)
+- `test`, `test:watch`, `test:coverage` (Vitest), `test:e2e` (Playwright), `check:prompts`
+- Single test by file: `npm test -- tests/unit/memories.test.js`; by name: `npm test -- -t "excerptFor"`.
+
+When changing tooling:
+- Keep `npm run lint`, `npm test`, `npm run check:prompts`, `npm run build` and `npm run test:e2e` green; CI runs all of them.
+- Put new unit tests in `tests/unit/` next to the module they cover; prefer testing exported pure helpers over
+  adding exports. Keep e2e selectors on ids and accessible roles so UI restyling does not break them.
+- Stylistic ESLint rules should be warnings; reserve errors for genuine bugs.
+- Update the README and this section whenever a script is added, renamed or removed.
 
 Keep this AGENTS.md updated whenever commands, architecture, or standards change.
 
