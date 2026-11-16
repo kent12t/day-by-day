@@ -62,7 +62,7 @@ Google OAuth redirect URI:
 Legacy sync-key connection remains available for recovery and migration.
 
 ## Privacy Note
-By default, all journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries unless you exported a backup.
+By default, journal entries are stored in your browser's local storage as JSON, and photos are compressed (max 1600px, WebP/JPEG) and stored in the browser's IndexedDB on this device. Clearing your browser data will remove your entries unless you exported a backup. Exports embed photos so a backup file is self-contained.
 
 If you explicitly connect sync, entries are stored in Cloudflare D1 and photos are stored in Cloudflare R2 under your private sync vault. Sync never runs automatically until you tap **Sync now**.
 

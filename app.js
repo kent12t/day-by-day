@@ -1,3 +1,30 @@
+import {
+  blobToDataUrl,
+  compressImage,
+  dataUrlToBlob,
+  deletePhoto,
+  getPhoto,
+  isInlinePhoto,
+  migrateInlinePhotos,
+  putPhoto,
+  requestPersistentStorage,
+} from "./lib/photo-store.js";
+import {
+  MEMORY_PAGE_SIZE,
+  excerptFor,
+  filterMemories,
+  groupMemoriesByMonth,
+  sortMemoriesNewestFirst,
+} from "./lib/memories.js";
+import { closeDialog, openDialog } from "./lib/dialog.js";
+import {
+  chooseLeastUsedTopic,
+  countEntriesOnDay,
+  customPromptId,
+  localDayKey,
+  pickRankedPrompt,
+} from "./lib/prompt-logic.js";
+
 const STORAGE_KEY = "dayByDay.entries.v1";
 const PROMPT_ROTATION_KEY = "dayByDay.promptRotation.v1";
 const SYNC_META_KEY = "dayByDay.sync.meta.v1";
@@ -58,7 +85,10 @@ const state = {
   selectedDepth: "gentle",
   selectedPrompt: null,
   selectedMode: "offline",
-  photoDataUrl: "",
+  photoBlob: null,
+  photoPreviewUrl: "",
+  customPromptActive: false,
+  savingEntry: false,
   promptRotation: loadPromptRotation(),
   activeView: "atlas",
   atlas: {
@@ -77,11 +107,26 @@ const state = {
     clickBlocked: false,
   },
   latestNode: null,
-  activeMemoryId: "",
+  memoryFilter: { topic: "all", query: "" },
+  memoryVisibleCount: MEMORY_PAGE_SIZE,
+  memorySheet: {
+    entryId: "",
+    editing: false,
+    photoUrl: "",
+    editBlob: null,
+    editPreviewUrl: "",
+    removePhoto: false,
+    saving: false,
+  },
   pendingDeleteId: "",
   pendingDeletes: loadPendingDeletes(),
   sync: loadSyncMeta(),
 };
+
+let memoryThumbObserver = null;
+let loadMoreObserver = null;
+let atlasReturnFocus = null;
+const memoryThumbUrls = new Map();
 
 const viewSections = [...document.querySelectorAll(".view")];
 const navButtons = [...document.querySelectorAll("[data-go]")];
@@ -108,9 +153,41 @@ const photoInputWrap = document.querySelector("#photoInputWrap");
 const photoInput = document.querySelector("#photoInput");
 const photoPreview = document.querySelector("#photoPreview");
 const saveEntryBtn = document.querySelector("#saveEntryBtn");
+const writeOwnPromptBtn = document.querySelector("#writeOwnPromptBtn");
+const customPromptWrap = document.querySelector("#customPromptWrap");
+const customPromptInput = document.querySelector("#customPromptInput");
+const cancelCustomPromptBtn = document.querySelector("#cancelCustomPromptBtn");
 
 const skyMeta = document.querySelector("#skyMeta");
 const historyList = document.querySelector("#historyList");
+const memoriesSummary = document.querySelector("#memoriesSummary");
+const memorySearchInput = document.querySelector("#memorySearchInput");
+const memoryTopicFilters = document.querySelector("#memoryTopicFilters");
+const memoryResultsStatus = document.querySelector("#memoryResultsStatus");
+const loadMoreMemoriesBtn = document.querySelector("#loadMoreMemoriesBtn");
+const memorySheetOverlay = document.querySelector("#memorySheetOverlay");
+const memorySheet = document.querySelector("#memorySheet");
+const memorySheetKicker = document.querySelector("#memorySheetKicker");
+const memorySheetTitle = document.querySelector("#memorySheetTitle");
+const memorySheetMeta = document.querySelector("#memorySheetMeta");
+const memorySheetPrompt = document.querySelector("#memorySheetPrompt");
+const memorySheetFollowUp = document.querySelector("#memorySheetFollowUp");
+const memorySheetView = document.querySelector("#memorySheetView");
+const memorySheetNoteLabel = document.querySelector("#memorySheetNoteLabel");
+const memorySheetNote = document.querySelector("#memorySheetNote");
+const memorySheetPhoto = document.querySelector("#memorySheetPhoto");
+const memoryEditForm = document.querySelector("#memoryEditForm");
+const memoryEditText = document.querySelector("#memoryEditText");
+const memoryEditPreview = document.querySelector("#memoryEditPreview");
+const memoryEditPhoto = document.querySelector("#memoryEditPhoto");
+const memoryRemovePhotoBtn = document.querySelector("#memoryRemovePhotoBtn");
+const memoryViewActions = document.querySelector("#memoryViewActions");
+const memoryEditActions = document.querySelector("#memoryEditActions");
+const closeMemorySheetBtn = document.querySelector("#closeMemorySheetBtn");
+const editMemoryBtn = document.querySelector("#editMemoryBtn");
+const deleteMemoryBtn = document.querySelector("#deleteMemoryBtn");
+const cancelEditMemoryBtn = document.querySelector("#cancelEditMemoryBtn");
+const saveEditMemoryBtn = document.querySelector("#saveEditMemoryBtn");
 const exportDataBtn = document.querySelector("#exportDataBtn");
 const importDataBtn = document.querySelector("#importDataBtn");
 const importDataInput = document.querySelector("#importDataInput");
@@ -122,6 +199,7 @@ const syncStatus = document.querySelector("#syncStatus");
 const toast = document.querySelector("#toast");
 const atlasPopup = document.querySelector("#atlasPopup");
 const confirmOverlay = document.querySelector("#confirmOverlay");
+const confirmModal = confirmOverlay.querySelector(".confirm-modal");
 const confirmText = document.querySelector("#confirmText");
 const cancelDeleteBtn = document.querySelector("#cancelDeleteBtn");
 const confirmDeleteBtn = document.querySelector("#confirmDeleteBtn");
@@ -157,11 +235,13 @@ async function init() {
   renderDepths();
   pickPrompt();
   renderSkyAtlas();
+  renderMemoryFilters();
   renderHistory();
   await refreshAuthSession();
   renderSyncStatus();
   bindEvents();
   handleAuthNotice();
+  await migrateLegacyPhotoStorage();
 }
 
 function bindEvents() {
@@ -209,6 +289,7 @@ function bindEvents() {
     } catch (err) {
       console.error("Failed to persist prompt rotation:", err);
     }
+    stopCustomPrompt();
     pickPrompt();
     resetPromptDecisionFlow();
   });
@@ -221,19 +302,17 @@ function bindEvents() {
     syncCaptureMode();
   });
 
-  photoInput.addEventListener("change", async () => {
-    const file = photoInput.files?.[0];
-    if (!file) {
-      state.photoDataUrl = "";
-      photoPreview.classList.add("hidden");
-      return;
-    }
-    state.photoDataUrl = await readFileAsDataUrl(file);
-    photoPreview.src = state.photoDataUrl;
-    photoPreview.classList.remove("hidden");
-  });
+  photoInput.addEventListener("change", handlePhotoSelection);
 
   saveEntryBtn.addEventListener("click", saveEntry);
+
+  writeOwnPromptBtn.addEventListener("click", startCustomPrompt);
+  cancelCustomPromptBtn.addEventListener("click", () => {
+    stopCustomPrompt();
+    pickPrompt();
+    resetPromptDecisionFlow();
+  });
+  customPromptInput.addEventListener("input", renderCustomPromptCard);
 
   zoomInBtn.addEventListener("click", () => zoomAtlas(0.15));
   zoomOutBtn.addEventListener("click", () => zoomAtlas(-0.15));
@@ -248,17 +327,51 @@ function bindEvents() {
   });
 
   historyList.addEventListener("click", (event) => {
-    const deleteButton = event.target.closest(".history-delete-btn");
-    if (deleteButton) {
-      event.stopPropagation();
-      openDeleteConfirm(deleteButton.dataset.entryId);
-      return;
-    }
-
     const card = event.target.closest(".history-item");
     if (!card) return;
-    state.activeMemoryId = state.activeMemoryId === card.dataset.entryId ? "" : card.dataset.entryId;
+    openMemorySheet(card.dataset.entryId, card);
+  });
+
+  memorySearchInput.addEventListener("input", () => {
+    state.memoryFilter.query = memorySearchInput.value;
+    state.memoryVisibleCount = MEMORY_PAGE_SIZE;
     renderHistory();
+  });
+
+  memoryTopicFilters.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-filter-topic]");
+    if (!button) return;
+    state.memoryFilter.topic = button.dataset.filterTopic;
+    state.memoryVisibleCount = MEMORY_PAGE_SIZE;
+    renderMemoryFilters();
+    renderHistory();
+  });
+
+  loadMoreMemoriesBtn.addEventListener("click", showMoreMemories);
+
+  closeMemorySheetBtn.addEventListener("click", requestCloseMemorySheet);
+  editMemoryBtn.addEventListener("click", startMemoryEdit);
+  cancelEditMemoryBtn.addEventListener("click", cancelMemoryEdit);
+  saveEditMemoryBtn.addEventListener("click", saveMemoryEdit);
+  memoryEditForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveMemoryEdit();
+  });
+  memoryEditPhoto.addEventListener("change", handleMemoryEditPhoto);
+  memoryRemovePhotoBtn.addEventListener("click", removeMemoryEditPhoto);
+  deleteMemoryBtn.addEventListener("click", () => {
+    openDeleteConfirm(state.memorySheet.entryId, deleteMemoryBtn);
+  });
+  memorySheetOverlay.addEventListener("click", (event) => {
+    if (event.target === memorySheetOverlay) requestCloseMemorySheet();
+  });
+
+  atlasPopup.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-open-entry]");
+    if (!button) return;
+    const entryId = button.dataset.openEntry;
+    hideAtlasPopup();
+    openMemorySheet(entryId, atlasReturnFocus);
   });
 
   cancelDeleteBtn.addEventListener("click", closeDeleteConfirm);
@@ -345,11 +458,6 @@ function bindEvents() {
     if (!event.target.closest("#skyAtlas") && !event.target.closest("#atlasPopup")) {
       hideAtlasPopup();
     }
-
-    if (state.activeMemoryId && !event.target.closest("#historyList")) {
-      state.activeMemoryId = "";
-      renderHistory();
-    }
   });
 }
 
@@ -413,7 +521,17 @@ function unlockPromptCard() {
 
 function applyCustomizeMode(mode) {
   const isQuick = mode === "quick";
+  const isOwn = mode === "own";
+  if (!isOwn && state.customPromptActive) {
+    stopCustomPrompt();
+    pickPrompt();
+  }
   reflectionSettings.classList.toggle("hidden", isQuick);
+  if (isOwn) {
+    customizeTitle.textContent = "Your Prompt";
+    customizeSubtitle.textContent = "Ask yourself the question tonight needs.";
+    return;
+  }
   customizeTitle.textContent = isQuick ? "Use Prompt" : "Customize";
   customizeSubtitle.textContent = isQuick
     ? "Capture your reflection with this prompt."
@@ -462,11 +580,13 @@ function pickPrompt() {
     state.selectedPrompt = null;
     promptText.textContent = "Prompts are loading...";
     followUpText.textContent = "";
+    renderCustomPromptCard();
     return;
   }
 
+  const dayKey = localDayKey();
   let topic = state.selectedTopic;
-  if (topic === "wildcard") topic = chooseWildcardTopic();
+  if (topic === "wildcard") topic = chooseWildcardTopic(dayKey);
 
   const relevant = state.prompts.filter((prompt) => prompt.topic === topic && prompt.depth === state.selectedDepth);
   const recentPromptIds = new Set(
@@ -476,45 +596,107 @@ function pickPrompt() {
       .filter(Boolean)
   );
 
-  let pool = relevant.filter((prompt) => !recentPromptIds.has(prompt.id));
-  if (!pool.length) pool = relevant;
-
-  if (!pool.length) {
+  if (!relevant.length) {
     state.selectedPrompt = null;
     promptText.textContent = "No prompts found for this setup.";
     followUpText.textContent = "";
+    renderCustomPromptCard();
     return;
   }
 
-  const dayKey = new Date().toISOString().slice(0, 10);
-  const seed = hashString(`${dayKey}-${topic}-${state.selectedDepth}-${state.entries.length}-${state.promptRotation}`);
-  const index = Math.abs(seed) % pool.length;
+  // Seed with today's local date and how many reflections were saved today, so
+  // deleting an older memory never reshuffles today's prompt (#10).
+  const savedToday = countEntriesOnDay(state.entries, dayKey);
+  const seed = `${dayKey}-${topic}-${state.selectedDepth}-${savedToday}`;
 
-  state.selectedPrompt = pool[index];
+  state.selectedPrompt = pickRankedPrompt(relevant, seed, recentPromptIds, state.promptRotation);
   promptKicker.textContent = TOPIC_LABELS[state.selectedPrompt.topic] || "Prompt";
   promptText.textContent = state.selectedPrompt.text;
   followUpText.textContent = state.selectedPrompt.followUp || "";
+  renderCustomPromptCard();
 }
 
-function chooseWildcardTopic() {
-  const topicUsage = {
-    self: 0,
-    relationships: 0,
-    work: 0,
-    body: 0,
-    gratitude: 0,
-    dreams: 0,
-  };
-
-  state.entries.slice(-14).forEach((entry) => {
-    if (topicUsage[entry.topic] !== undefined) topicUsage[entry.topic] += 1;
-  });
-
-  return Object.entries(topicUsage).sort((a, b) => a[1] - b[1])[0][0];
+function chooseWildcardTopic(dayKey = localDayKey()) {
+  const topics = Object.keys(TOPIC_CENTERS);
+  return chooseLeastUsedTopic(state.entries.slice(-14), topics, `${dayKey}-${state.promptRotation}`);
 }
 
-function saveEntry() {
-  if (!state.selectedPrompt) {
+function startCustomPrompt() {
+  state.customPromptActive = true;
+  customPromptWrap.classList.remove("hidden");
+  showCustomizePanel("own");
+  renderCustomPromptCard();
+  customPromptInput.focus({ preventScroll: true });
+}
+
+function stopCustomPrompt() {
+  state.customPromptActive = false;
+  customPromptWrap.classList.add("hidden");
+}
+
+function renderCustomPromptCard() {
+  if (!state.customPromptActive) return;
+  const text = customPromptInput.value.trim();
+  promptKicker.textContent = "Your own prompt";
+  promptText.textContent = text || "Write the question you want to sit with.";
+  followUpText.textContent = "";
+}
+
+function getCustomTopic() {
+  return state.selectedTopic === "wildcard" ? "self" : state.selectedTopic;
+}
+
+function buildPromptForEntry() {
+  if (state.customPromptActive) {
+    const text = customPromptInput.value.trim().replace(/\s+/g, " ");
+    if (!text) return null;
+    return { id: customPromptId(text), topic: getCustomTopic(), text, followUp: "" };
+  }
+  return state.selectedPrompt;
+}
+
+async function handlePhotoSelection() {
+  const file = photoInput.files?.[0];
+  clearSelectedPhoto({ keepInput: true });
+  if (!file) return;
+
+  saveEntryBtn.disabled = true;
+  try {
+    const blob = await compressImage(file);
+    if (photoInput.files?.[0] !== file) return;
+    state.photoBlob = blob;
+    state.photoPreviewUrl = URL.createObjectURL(blob);
+    photoPreview.src = state.photoPreviewUrl;
+    photoPreview.classList.remove("hidden");
+  } catch (err) {
+    console.error("Could not process photo:", err);
+    photoInput.value = "";
+    showToast("Could not read that photo. Try a JPEG or PNG.");
+  } finally {
+    saveEntryBtn.disabled = false;
+  }
+}
+
+function clearSelectedPhoto({ keepInput = false } = {}) {
+  if (state.photoPreviewUrl) URL.revokeObjectURL(state.photoPreviewUrl);
+  state.photoBlob = null;
+  state.photoPreviewUrl = "";
+  if (!keepInput) photoInput.value = "";
+  photoPreview.removeAttribute("src");
+  photoPreview.classList.add("hidden");
+}
+
+async function saveEntry() {
+  if (state.savingEntry) return;
+
+  if (state.customPromptActive && !customPromptInput.value.trim()) {
+    showToast("Write your prompt first.");
+    customPromptInput.focus();
+    return;
+  }
+
+  const prompt = buildPromptForEntry();
+  if (!prompt) {
     showToast("Reveal a prompt first.");
     return;
   }
@@ -525,40 +707,73 @@ function saveEntry() {
     return;
   }
 
-  if (state.selectedMode === "photo" && !state.photoDataUrl) {
+  const photoBlob = state.selectedMode === "photo" ? state.photoBlob : null;
+  if (state.selectedMode === "photo" && !photoBlob) {
     showToast("Add a photo before saving.");
     return;
   }
 
   const now = new Date();
-  const topicForEntry = state.selectedTopic === "wildcard" ? state.selectedPrompt.topic : state.selectedTopic;
+  const topicForEntry = state.customPromptActive
+    ? getCustomTopic()
+    : state.selectedTopic === "wildcard"
+      ? prompt.topic
+      : state.selectedTopic;
 
   const entry = {
-    id: `${now.toISOString()}-${Math.abs(hashString(state.selectedPrompt.id + state.entries.length))}`,
+    id: `${now.toISOString()}-${Math.abs(hashString(prompt.id + state.entries.length))}`,
     date: now.toISOString(),
     topic: topicForEntry,
     topicPicker: state.selectedTopic,
     depth: state.selectedDepth,
-    promptId: state.selectedPrompt.id,
-    promptText: state.selectedPrompt.text,
-    followUp: state.selectedPrompt.followUp || "",
+    promptId: prompt.id,
+    promptText: prompt.text,
+    followUp: prompt.followUp || "",
     mode: state.selectedMode,
     text,
-    photoDataUrl: state.selectedMode === "photo" ? state.photoDataUrl : "",
+    photoDataUrl: "",
+    photoRef: "",
     photoSynced: state.selectedMode !== "photo",
     updatedAt: now.toISOString(),
   };
 
-  state.entries.push(entry);
-  persistEntries();
+  state.savingEntry = true;
+  saveEntryBtn.disabled = true;
+
+  try {
+    if (photoBlob) {
+      try {
+        await putPhoto(entry.id, photoBlob);
+        entry.photoRef = entry.id;
+        requestPersistentStorage();
+      } catch (err) {
+        console.error("Failed to store photo:", err);
+        showToast("Could not store this photo on your device. Your reflection is still here.");
+        return;
+      }
+    }
+
+    state.entries.push(entry);
+    if (!persistEntries()) {
+      state.entries = state.entries.filter((item) => item.id !== entry.id);
+      if (entry.photoRef) deletePhoto(entry.id).catch((err) => console.error("Photo cleanup failed:", err));
+      showToast("Could not save locally. Your reflection is still here.");
+      return;
+    }
+  } finally {
+    state.savingEntry = false;
+    saveEntryBtn.disabled = false;
+  }
 
   journalText.value = "";
-  photoInput.value = "";
-  state.photoDataUrl = "";
-  photoPreview.src = "";
-  photoPreview.classList.add("hidden");
+  clearSelectedPhoto();
+  if (state.customPromptActive) {
+    customPromptInput.value = "";
+    stopCustomPrompt();
+  }
 
   renderSkyAtlas(entry);
+  renderMemoryFilters();
   renderHistory();
   pickPrompt();
 
@@ -798,69 +1013,468 @@ function makeLinks(nodes) {
   return links;
 }
 
+function renderMemoryFilters() {
+  memoryTopicFilters.innerHTML = "";
+  const counts = new Map();
+  state.entries.forEach((entry) => counts.set(entry.topic, (counts.get(entry.topic) || 0) + 1));
+
+  if (state.memoryFilter.topic !== "all" && !counts.has(state.memoryFilter.topic)) {
+    state.memoryFilter.topic = "all";
+  }
+
+  const topics = Object.keys(TOPIC_LABELS).filter((topic) => counts.has(topic));
+  memoryTopicFilters.classList.toggle("hidden", topics.length < 2);
+
+  [["all", "All"], ...topics.map((topic) => [topic, TOPIC_LABELS[topic]])].forEach(([topic, label]) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `chip ${topic === state.memoryFilter.topic ? "active" : ""}`;
+    btn.dataset.filterTopic = topic;
+    if (topic !== "all") btn.dataset.topic = topic;
+    btn.setAttribute("aria-pressed", String(topic === state.memoryFilter.topic));
+    btn.textContent = topic === "all" ? label : `${label} · ${counts.get(topic)}`;
+    memoryTopicFilters.append(btn);
+  });
+}
+
 function renderHistory() {
   historyList.innerHTML = "";
 
-  const latest = [...state.entries].reverse().slice(0, 16);
-  if (!latest.length) {
+  const total = state.entries.length;
+  memoriesSummary.textContent = total
+    ? `${total} moment${total === 1 ? "" : "s"} in your sky.`
+    : "Every moment in your sky.";
+
+  if (!total) {
     const empty = document.createElement("p");
     empty.className = "history-meta";
     empty.textContent = "No memories yet. Add your first reflection from the + button.";
     historyList.append(empty);
+    memoryResultsStatus.textContent = "";
+    loadMoreMemoriesBtn.classList.add("hidden");
+    releaseMemoryThumbs(new Set());
     return;
   }
 
-  latest.forEach((entry) => {
-    const card = document.createElement("article");
-    card.className = `history-item ${entry.id === state.activeMemoryId ? "active" : ""}`;
-    card.dataset.entryId = entry.id;
+  const filtered = filterMemories(sortMemoriesNewestFirst(state.entries), state.memoryFilter);
+  const visible = filtered.slice(0, state.memoryVisibleCount);
+  const isFiltered = state.memoryFilter.topic !== "all" || Boolean(state.memoryFilter.query.trim());
 
-    const meta = document.createElement("p");
-    meta.className = "history-meta";
-    const day = new Date(entry.date).toLocaleDateString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-    meta.textContent = `${day} • ${TOPIC_LABELS[entry.topic] || entry.topic} • ${entry.depth}`;
+  memoryResultsStatus.textContent = isFiltered
+    ? `${filtered.length} of ${total} memories match.`
+    : `Showing ${visible.length} of ${total}.`;
 
-    const prompt = document.createElement("p");
-    prompt.className = "history-text";
-    prompt.textContent = entry.promptText;
+  if (!filtered.length) {
+    const empty = document.createElement("p");
+    empty.className = "history-meta memory-empty";
+    empty.textContent = "No memories match yet. Try another word or topic.";
+    historyList.append(empty);
+  }
 
-    card.append(meta, prompt);
+  const monthTotals = new Map();
+  groupMemoriesByMonth(filtered).forEach((group) => monthTotals.set(group.key, group.entries.length));
 
-    if (entry.text) {
-      const note = document.createElement("p");
-      note.className = "history-meta";
-      note.textContent = `"${truncate(entry.text, 150)}"`;
-      card.append(note);
+  groupMemoriesByMonth(visible).forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "memory-month";
+    section.setAttribute("aria-labelledby", `month-${group.key}`);
+
+    const heading = document.createElement("h3");
+    heading.className = "memory-month-title";
+    heading.id = `month-${group.key}`;
+    heading.textContent = group.label;
+    const count = document.createElement("span");
+    count.className = "memory-month-count";
+    const monthTotal = monthTotals.get(group.key) || group.entries.length;
+    count.textContent = `${monthTotal} ${monthTotal === 1 ? "memory" : "memories"}`;
+    heading.append(count);
+
+    const list = document.createElement("div");
+    list.className = "memory-month-list";
+    group.entries.forEach((entry) => list.append(createMemoryCard(entry)));
+
+    section.append(heading, list);
+    historyList.append(section);
+  });
+
+  const remaining = filtered.length - visible.length;
+  loadMoreMemoriesBtn.classList.toggle("hidden", remaining <= 0);
+  loadMoreMemoriesBtn.textContent = `Show older memories (${remaining} more)`;
+
+  releaseMemoryThumbs(new Set(visible.map((entry) => entry.id)));
+  observeLoadMore();
+}
+
+function createMemoryCard(entry) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "history-item";
+  card.dataset.entryId = entry.id;
+  card.dataset.topic = entry.topic;
+  card.setAttribute("aria-haspopup", "dialog");
+
+  const meta = document.createElement("span");
+  meta.className = "history-meta";
+  const dot = document.createElement("span");
+  dot.className = "topic-dot";
+  dot.setAttribute("aria-hidden", "true");
+  meta.append(dot, `${formatEntryDay(entry.date)} • ${TOPIC_LABELS[entry.topic] || entry.topic} • ${entry.depth}`);
+
+  const prompt = document.createElement("span");
+  prompt.className = "history-text";
+  prompt.textContent = entry.promptText;
+
+  card.append(meta, prompt);
+
+  if (entry.text) {
+    const note = document.createElement("span");
+    note.className = "history-meta history-note";
+    note.textContent = `"${truncate(entry.text, 150)}"`;
+    card.append(note);
+  }
+
+  if (entryHasPhoto(entry)) {
+    const img = document.createElement("img");
+    img.className = "history-thumb";
+    img.alt = "Reflection photo";
+    img.decoding = "async";
+    img.dataset.entryId = entry.id;
+    card.append(img);
+    observeMemoryThumb(img, entry);
+  }
+
+  return card;
+}
+
+function formatEntryDay(dateValue, options = { weekday: "short", month: "short", day: "numeric" }) {
+  return new Date(dateValue).toLocaleDateString(undefined, options);
+}
+
+function entryHasPhoto(entry) {
+  return Boolean(entry.photoRef || entry.photoDataUrl);
+}
+
+// Resolves a displayable URL for an entry photo. `owned` URLs are object URLs
+// that the caller must revoke.
+async function resolveEntryPhotoUrl(entry) {
+  if (entry.photoRef) {
+    try {
+      const blob = await getPhoto(entry.photoRef);
+      if (blob) return { url: URL.createObjectURL(blob), owned: true };
+    } catch (err) {
+      console.error("Could not load photo:", err);
     }
+  }
+  if (entry.photoDataUrl) return { url: entry.photoDataUrl, owned: false };
+  return { url: "", owned: false };
+}
 
-    if (entry.photoDataUrl) {
-      const img = document.createElement("img");
-      img.className = "history-thumb";
-      img.src = entry.photoDataUrl;
-      img.alt = "Reflection photo";
-      card.append(img);
-    }
+function observeMemoryThumb(img, entry) {
+  const cached = memoryThumbUrls.get(entry.id);
+  if (cached) {
+    img.src = cached.url;
+    return;
+  }
 
-    if (entry.id === state.activeMemoryId) {
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "history-delete-btn";
-      deleteBtn.dataset.entryId = entry.id;
-      deleteBtn.setAttribute("aria-label", "Delete memory");
-      deleteBtn.innerHTML =
-        '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M7 6l1 14h8l1-14" /><path d="M10 10v6" /><path d="M14 10v6" /></svg>';
-      card.append(deleteBtn);
-    }
+  if (!("IntersectionObserver" in window)) {
+    loadMemoryThumb(img, entry);
+    return;
+  }
 
-    historyList.append(card);
+  if (!memoryThumbObserver) {
+    memoryThumbObserver = new IntersectionObserver(
+      (records) => {
+        records.forEach((record) => {
+          if (!record.isIntersecting) return;
+          memoryThumbObserver.unobserve(record.target);
+          const target = state.entries.find((item) => item.id === record.target.dataset.entryId);
+          if (target) loadMemoryThumb(record.target, target);
+        });
+      },
+      { rootMargin: "240px 0px" }
+    );
+  }
+  memoryThumbObserver.observe(img);
+}
+
+async function loadMemoryThumb(img, entry) {
+  const cached = memoryThumbUrls.get(entry.id);
+  if (cached) {
+    img.src = cached.url;
+    return;
+  }
+
+  const resolved = await resolveEntryPhotoUrl(entry);
+  if (!resolved.url) {
+    img.remove();
+    return;
+  }
+
+  const existing = memoryThumbUrls.get(entry.id);
+  if (existing) {
+    if (resolved.owned) URL.revokeObjectURL(resolved.url);
+    img.src = existing.url;
+    return;
+  }
+
+  if (!img.isConnected) {
+    if (resolved.owned) URL.revokeObjectURL(resolved.url);
+    return;
+  }
+
+  memoryThumbUrls.set(entry.id, resolved);
+  img.src = resolved.url;
+}
+
+function releaseMemoryThumbs(keepIds) {
+  memoryThumbUrls.forEach((value, entryId) => {
+    if (keepIds.has(entryId)) return;
+    if (value.owned) URL.revokeObjectURL(value.url);
+    memoryThumbUrls.delete(entryId);
   });
 }
 
-function openDeleteConfirm(entryId) {
+function observeLoadMore() {
+  if (loadMoreObserver || !("IntersectionObserver" in window)) return;
+  loadMoreObserver = new IntersectionObserver(
+    (records) => {
+      if (records.some((record) => record.isIntersecting)) showMoreMemories();
+    },
+    { rootMargin: "120px 0px" }
+  );
+  loadMoreObserver.observe(loadMoreMemoriesBtn);
+}
+
+function showMoreMemories() {
+  if (loadMoreMemoriesBtn.classList.contains("hidden")) return;
+  const hadFocus = document.activeElement === loadMoreMemoriesBtn;
+  state.memoryVisibleCount += MEMORY_PAGE_SIZE;
+  renderHistory();
+  if (hadFocus && !loadMoreMemoriesBtn.classList.contains("hidden")) loadMoreMemoriesBtn.focus();
+}
+
+function openMemorySheet(entryId, returnFocus) {
+  const entry = state.entries.find((item) => item.id === entryId);
+  if (!entry) return;
+
+  resetMemoryEditState();
+  state.memorySheet.entryId = entry.id;
+  renderMemorySheet(entry);
+  openDialog({
+    overlay: memorySheetOverlay,
+    panel: memorySheet,
+    returnFocus: returnFocus || document.activeElement,
+    initialFocus: closeMemorySheetBtn,
+    onRequestClose: requestCloseMemorySheet,
+  });
+}
+
+function renderMemorySheet(entry) {
+  memorySheet.dataset.topic = entry.topic;
+  memorySheetKicker.textContent = TOPIC_LABELS[entry.topic] || entry.topic;
+  memorySheetTitle.textContent = formatEntryDay(entry.date, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const modeLabel = { offline: "Written offline", text: "Written here", photo: "Photo" }[entry.mode] || entry.mode;
+  const edited = entry.updatedAt && entry.updatedAt !== entry.date ? " • edited" : "";
+  memorySheetMeta.textContent = `Depth: ${entry.depth} • ${modeLabel}${edited}`;
+  memorySheetPrompt.textContent = entry.promptText;
+  memorySheetFollowUp.textContent = entry.followUp || "";
+  memorySheetFollowUp.classList.toggle("hidden", !entry.followUp);
+
+  memorySheetNoteLabel.classList.toggle("hidden", !entry.text);
+  memorySheetNote.textContent = entry.text || (entry.mode === "offline" ? "You wrote this one offline." : "");
+  memorySheetNote.classList.toggle("muted", !entry.text);
+
+  loadSheetPhoto(entry);
+}
+
+async function loadSheetPhoto(entry) {
+  releaseSheetPhoto();
+  memorySheetPhoto.classList.add("hidden");
+  if (!entryHasPhoto(entry)) return;
+
+  const resolved = await resolveEntryPhotoUrl(entry);
+  if (state.memorySheet.entryId !== entry.id || !resolved.url) {
+    if (resolved.owned) URL.revokeObjectURL(resolved.url);
+    return;
+  }
+
+  releaseSheetPhoto();
+  state.memorySheet.photoUrl = resolved.owned ? resolved.url : "";
+  memorySheetPhoto.src = resolved.url;
+  memorySheetPhoto.alt = `Photo from your ${TOPIC_LABELS[entry.topic] || ""} reflection`;
+  memorySheetPhoto.classList.remove("hidden");
+}
+
+function releaseSheetPhoto() {
+  if (state.memorySheet.photoUrl) URL.revokeObjectURL(state.memorySheet.photoUrl);
+  state.memorySheet.photoUrl = "";
+  memorySheetPhoto.removeAttribute("src");
+}
+
+function requestCloseMemorySheet() {
+  if (state.memorySheet.editing) {
+    cancelMemoryEdit();
+    return;
+  }
+  closeMemorySheet();
+}
+
+function closeMemorySheet({ restoreFocus = true } = {}) {
+  resetMemoryEditState();
+  releaseSheetPhoto();
+  state.memorySheet.entryId = "";
+  closeDialog(memorySheetOverlay, { restoreFocus });
+}
+
+function setMemoryEditing(editing) {
+  state.memorySheet.editing = editing;
+  memorySheetView.classList.toggle("hidden", editing);
+  memoryEditForm.classList.toggle("hidden", !editing);
+  memoryViewActions.classList.toggle("hidden", editing);
+  memoryEditActions.classList.toggle("hidden", !editing);
+}
+
+function resetMemoryEditState() {
+  const sheet = state.memorySheet;
+  if (sheet.editPreviewUrl) URL.revokeObjectURL(sheet.editPreviewUrl);
+  sheet.editBlob = null;
+  sheet.editPreviewUrl = "";
+  sheet.removePhoto = false;
+  memoryEditPhoto.value = "";
+  memoryEditPreview.removeAttribute("src");
+  memoryEditPreview.classList.add("hidden");
+  setMemoryEditing(false);
+}
+
+function startMemoryEdit() {
+  const entry = state.entries.find((item) => item.id === state.memorySheet.entryId);
+  if (!entry) return;
+
+  resetMemoryEditState();
+  memoryEditText.value = entry.text || "";
+  if (memorySheetPhoto.getAttribute("src")) {
+    memoryEditPreview.src = memorySheetPhoto.src;
+    memoryEditPreview.classList.remove("hidden");
+  }
+  memoryRemovePhotoBtn.classList.toggle("hidden", !entryHasPhoto(entry));
+  setMemoryEditing(true);
+  memoryEditText.focus();
+}
+
+function cancelMemoryEdit() {
+  resetMemoryEditState();
+  editMemoryBtn.focus();
+}
+
+async function handleMemoryEditPhoto() {
+  const file = memoryEditPhoto.files?.[0];
+  if (!file) return;
+
+  saveEditMemoryBtn.disabled = true;
+  try {
+    const blob = await compressImage(file);
+    const sheet = state.memorySheet;
+    if (sheet.editPreviewUrl) URL.revokeObjectURL(sheet.editPreviewUrl);
+    sheet.editBlob = blob;
+    sheet.removePhoto = false;
+    sheet.editPreviewUrl = URL.createObjectURL(blob);
+    memoryEditPreview.src = sheet.editPreviewUrl;
+    memoryEditPreview.classList.remove("hidden");
+    memoryRemovePhotoBtn.classList.remove("hidden");
+  } catch (err) {
+    console.error("Could not process photo:", err);
+    memoryEditPhoto.value = "";
+    showToast("Could not read that photo. Try a JPEG or PNG.");
+  } finally {
+    saveEditMemoryBtn.disabled = false;
+  }
+}
+
+function removeMemoryEditPhoto() {
+  const sheet = state.memorySheet;
+  if (sheet.editPreviewUrl) URL.revokeObjectURL(sheet.editPreviewUrl);
+  sheet.editBlob = null;
+  sheet.editPreviewUrl = "";
+  sheet.removePhoto = true;
+  memoryEditPhoto.value = "";
+  memoryEditPreview.removeAttribute("src");
+  memoryEditPreview.classList.add("hidden");
+  memoryRemovePhotoBtn.classList.add("hidden");
+  memoryEditPhoto.focus();
+}
+
+async function saveMemoryEdit() {
+  const sheet = state.memorySheet;
+  if (sheet.saving) return;
+
+  const index = state.entries.findIndex((item) => item.id === sheet.entryId);
+  if (index < 0) {
+    closeMemorySheet();
+    return;
+  }
+
+  const original = state.entries[index];
+  // id, date and topic stay fixed so the star keeps its place in the atlas.
+  const updated = { ...original, text: memoryEditText.value.trim(), updatedAt: new Date().toISOString() };
+  const photoChanged = Boolean(sheet.editBlob) || (sheet.removePhoto && entryHasPhoto(original));
+
+  sheet.saving = true;
+  saveEditMemoryBtn.disabled = true;
+
+  try {
+    if (sheet.editBlob) {
+      try {
+        await putPhoto(original.id, sheet.editBlob);
+        requestPersistentStorage();
+      } catch (err) {
+        console.error("Failed to store edited photo:", err);
+        showToast("Could not store the new photo on this device.");
+        return;
+      }
+      updated.photoRef = original.id;
+      updated.photoDataUrl = "";
+      updated.photoSynced = false;
+    } else if (sheet.removePhoto) {
+      updated.photoRef = "";
+      updated.photoDataUrl = "";
+    }
+
+    state.entries[index] = updated;
+    if (!persistEntries()) {
+      state.entries[index] = original;
+      showToast("Could not save changes locally.");
+      return;
+    }
+
+    if (sheet.removePhoto && !sheet.editBlob && original.photoRef) {
+      deletePhoto(original.photoRef).catch((err) => console.error("Photo cleanup failed:", err));
+    }
+  } finally {
+    sheet.saving = false;
+    saveEditMemoryBtn.disabled = false;
+  }
+
+  if (photoChanged) forgetMemoryThumb(updated.id);
+  resetMemoryEditState();
+  renderMemorySheet(updated);
+  renderHistory();
+  editMemoryBtn.focus();
+  showToast("Memory updated.");
+}
+
+function forgetMemoryThumb(entryId) {
+  const cached = memoryThumbUrls.get(entryId);
+  if (cached?.owned) URL.revokeObjectURL(cached.url);
+  memoryThumbUrls.delete(entryId);
+}
+
+function openDeleteConfirm(entryId, returnFocus) {
   const entry = state.entries.find((item) => item.id === entryId);
   if (!entry) return;
 
@@ -872,12 +1486,18 @@ function openDeleteConfirm(entryId) {
 
   state.pendingDeleteId = entryId;
   confirmText.textContent = `Delete ${TOPIC_LABELS[entry.topic]} memory from ${day}? This cannot be undone.`;
-  confirmOverlay.classList.remove("hidden");
+  openDialog({
+    overlay: confirmOverlay,
+    panel: confirmModal,
+    returnFocus: returnFocus || document.activeElement,
+    initialFocus: cancelDeleteBtn,
+    onRequestClose: closeDeleteConfirm,
+  });
 }
 
-function closeDeleteConfirm() {
+function closeDeleteConfirm({ restoreFocus = true } = {}) {
   state.pendingDeleteId = "";
-  confirmOverlay.classList.add("hidden");
+  closeDialog(confirmOverlay, { restoreFocus });
 }
 
 function deleteSelectedMemory() {
@@ -891,43 +1511,77 @@ function deleteSelectedMemory() {
   state.pendingDeletes.push({ id: state.pendingDeleteId, deletedAt });
   persistPendingDeletes();
 
-  const nextEntries = state.entries.filter((entry) => entry.id !== state.pendingDeleteId);
+  const deletedId = state.pendingDeleteId;
+  const deletedEntry = state.entries.find((entry) => entry.id === deletedId);
+  const nextEntries = state.entries.filter((entry) => entry.id !== deletedId);
   state.entries = nextEntries;
-  state.activeMemoryId = "";
   persistEntries();
-  closeDeleteConfirm();
+  closeDeleteConfirm({ restoreFocus: false });
+
+  if (deletedEntry?.photoRef) {
+    deletePhoto(deletedEntry.photoRef).catch((err) => console.error("Failed to delete photo:", err));
+  }
+  forgetMemoryThumb(deletedId);
+
+  if (state.memorySheet.entryId === deletedId) closeMemorySheet({ restoreFocus: false });
 
   renderSkyAtlas();
+  renderMemoryFilters();
   renderHistory();
   pickPrompt();
   hideAtlasPopup();
+  if (state.activeView === "memories") memorySearchInput.focus({ preventScroll: true });
   showToast("Memory deleted.");
 }
 
-function exportEntries() {
+async function exportEntries() {
   if (!state.entries.length) {
     showToast("No memories to export yet.");
     return;
   }
 
-  const payload = {
-    app: "day-by-day",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    entries: state.entries,
-  };
+  exportDataBtn.disabled = true;
+  try {
+    const entries = [];
+    for (const entry of state.entries) {
+      entries.push(await serializeEntryForExport(entry));
+    }
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const fileDate = new Date().toISOString().slice(0, 10);
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `day-by-day-backup-${fileDate}.json`;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-  showToast("Memories exported.");
+    const payload = {
+      app: "day-by-day",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entries,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `day-by-day-backup-${localDayKey()}.json`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("Memories exported.");
+  } catch (err) {
+    console.error("Export failed:", err);
+    showToast("Could not export memories.");
+  } finally {
+    exportDataBtn.disabled = false;
+  }
+}
+
+// Backups stay self-contained: photos held in IndexedDB are embedded as data URLs.
+async function serializeEntryForExport(entry) {
+  if (!entry.photoRef) return { ...entry };
+  try {
+    const blob = await getPhoto(entry.photoRef);
+    if (blob) return { ...entry, photoDataUrl: await blobToDataUrl(blob) };
+  } catch (err) {
+    console.error(`Could not read photo for export (${entry.id}):`, err);
+  }
+  return { ...entry };
 }
 
 async function importEntriesFromFile() {
@@ -939,13 +1593,19 @@ async function importEntriesFromFile() {
   try {
     const text = await file.text();
     const parsed = JSON.parse(text);
-    const importedEntries = normalizeImportedEntries(parsed);
+    const normalized = normalizeImportedEntries(parsed);
 
-    if (!importedEntries.length) {
+    if (!normalized.length) {
       showToast("No valid memories found in file.");
       return;
     }
 
+    const importedEntries = [];
+    for (const entry of normalized) {
+      importedEntries.push(await storeImportedPhoto(entry));
+    }
+
+    const previousEntries = state.entries;
     const mergedById = new Map();
     state.entries.forEach((entry) => mergedById.set(entry.id, entry));
     const sizeBefore = mergedById.size;
@@ -953,8 +1613,13 @@ async function importEntriesFromFile() {
     const addedCount = mergedById.size - sizeBefore;
 
     state.entries = [...mergedById.values()].sort((a, b) => a.date.localeCompare(b.date));
-    persistEntries();
+    if (!persistEntries()) {
+      state.entries = previousEntries;
+      return;
+    }
+    importedEntries.forEach((entry) => forgetMemoryThumb(entry.id));
     renderSkyAtlas();
+    renderMemoryFilters();
     renderHistory();
     pickPrompt();
     hideAtlasPopup();
@@ -964,6 +1629,56 @@ async function importEntriesFromFile() {
     console.error("Import failed:", err);
     showToast("Could not import that file.");
   }
+}
+
+// Moves an imported inline photo into IndexedDB; keeps it inline if that fails.
+async function storeImportedPhoto(entry) {
+  if (!isInlinePhoto(entry.photoDataUrl)) return entry;
+  try {
+    await putPhoto(entry.id, dataUrlToBlob(entry.photoDataUrl));
+    requestPersistentStorage();
+    return { ...entry, photoRef: entry.id, photoDataUrl: "" };
+  } catch (err) {
+    console.error(`Could not store imported photo (${entry.id}):`, err);
+    return entry;
+  }
+}
+
+async function migrateLegacyPhotoStorage() {
+  const legacy = state.entries.filter((entry) => isInlinePhoto(entry.photoDataUrl));
+  if (!legacy.length) {
+    if (state.entries.some((entry) => entry.photoRef)) requestPersistentStorage();
+    return;
+  }
+
+  let migratedIds = [];
+  try {
+    migratedIds = await migrateInlinePhotos(legacy);
+  } catch (err) {
+    console.error("Photo migration failed:", err);
+    return;
+  }
+  if (!migratedIds.length) return;
+
+  const migrated = new Set(migratedIds);
+  const sourceById = new Map(legacy.map((entry) => [entry.id, entry.photoDataUrl]));
+  state.entries = state.entries.map((entry) =>
+    migrated.has(entry.id) && entry.photoDataUrl === sourceById.get(entry.id)
+      ? { ...entry, photoRef: entry.id, photoDataUrl: "" }
+      : entry
+  );
+
+  const liveIds = new Set(state.entries.map((entry) => entry.id));
+  migratedIds
+    .filter((id) => !liveIds.has(id))
+    .forEach((id) => deletePhoto(id).catch((err) => console.error("Photo cleanup failed:", err)));
+
+  // Only now, with every photo verified in IndexedDB, drop the inline copies.
+  if (persistEntries()) {
+    migratedIds.forEach((id) => forgetMemoryThumb(id));
+    renderHistory();
+  }
+  requestPersistentStorage();
 }
 
 function zoomAtlas(delta, pointerX, pointerY) {
@@ -1024,21 +1739,55 @@ function recenterLatestEntry() {
 }
 
 function showAtlasPopup(entry, event) {
-  const day = new Date(entry.date).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const current = state.entries.find((item) => item.id === entry.id) || entry;
 
-  atlasPopup.innerHTML = `<p class="popup-topic">${TOPIC_LABELS[entry.topic]}</p><p class="popup-date">${day}</p>`;
+  atlasPopup.replaceChildren();
+  atlasPopup.dataset.topic = current.topic;
+  atlasPopup.setAttribute("role", "group");
+  atlasPopup.setAttribute("aria-label", `${TOPIC_LABELS[current.topic] || "Memory"} preview`);
 
+  const topic = document.createElement("p");
+  topic.className = "popup-topic";
+  const dot = document.createElement("span");
+  dot.className = "topic-dot";
+  dot.setAttribute("aria-hidden", "true");
+  topic.append(dot, TOPIC_LABELS[current.topic] || current.topic);
+
+  const date = document.createElement("p");
+  date.className = "popup-date";
+  date.textContent = formatEntryDay(current.date, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+  const excerpt = document.createElement("p");
+  excerpt.className = "popup-excerpt";
+  excerpt.textContent = excerptFor(current, 96);
+
+  const openBtn = document.createElement("button");
+  openBtn.type = "button";
+  openBtn.className = "popup-open-btn";
+  openBtn.dataset.openEntry = current.id;
+  openBtn.textContent = "Open memory";
+
+  atlasPopup.append(topic, date, excerpt, openBtn);
+  atlasReturnFocus = event?.target instanceof Element ? event.target : null;
+
+  // Keyboard-triggered events have no pointer position; anchor to the star instead.
   const svgRect = skyAtlas.getBoundingClientRect();
-  const x = clamp(event.clientX - svgRect.left, 26, svgRect.width - 26);
-  const y = clamp(event.clientY - svgRect.top, 26, svgRect.height - 26);
+  let clientX = event?.clientX;
+  let clientY = event?.clientY;
+  if (clientX === undefined || (!clientX && !clientY)) {
+    const rect = atlasReturnFocus ? atlasReturnFocus.getBoundingClientRect() : svgRect;
+    clientX = rect.left + rect.width / 2;
+    clientY = rect.top + rect.height / 2;
+  }
+
+  atlasPopup.classList.remove("hidden", "below");
+  const halfWidth = Math.min(atlasPopup.offsetWidth, svgRect.width - 16) / 2;
+  const x = clamp(clientX - svgRect.left, halfWidth + 8, Math.max(halfWidth + 8, svgRect.width - halfWidth - 8));
+  const y = clamp(clientY - svgRect.top, 26, svgRect.height - 26);
+  atlasPopup.classList.toggle("below", y < atlasPopup.offsetHeight + 18);
 
   atlasPopup.style.left = `${x}px`;
   atlasPopup.style.top = `${y}px`;
-  atlasPopup.classList.remove("hidden");
 }
 
 function hideAtlasPopup() {
@@ -1072,9 +1821,11 @@ function syncAtlasMinZoom() {
 function persistEntries() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+    return true;
   } catch (err) {
     console.error("Failed to persist entries:", err);
     showToast("Could not save locally.");
+    return false;
   }
 }
 
@@ -1118,6 +1869,7 @@ function normalizeEntry(entry) {
   const text = typeof entry.text === "string" ? entry.text : "";
   const followUp = typeof entry.followUp === "string" ? entry.followUp : "";
   const photoDataUrl = typeof entry.photoDataUrl === "string" ? entry.photoDataUrl : "";
+  const photoRef = typeof entry.photoRef === "string" ? entry.photoRef.trim() : "";
   const photoSynced =
     typeof entry.photoSynced === "boolean" ? entry.photoSynced : !(photoDataUrl && photoDataUrl.startsWith("data:"));
   const updatedAt =
@@ -1137,7 +1889,9 @@ function normalizeEntry(entry) {
     followUp,
     mode,
     text,
-    photoDataUrl: mode === "photo" ? photoDataUrl : "",
+    // Photos may be attached to any entry via edit; photoRef points at IndexedDB.
+    photoDataUrl: mode === "photo" || isInlinePhoto(photoDataUrl) ? photoDataUrl : "",
+    photoRef,
     photoSynced: mode === "photo" ? photoSynced : true,
     updatedAt,
   };
@@ -1609,15 +2363,6 @@ function createSvg(tag, attributes) {
     node.setAttribute(key, value);
   });
   return node;
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 function hashString(value) {
