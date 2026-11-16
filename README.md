@@ -10,7 +10,7 @@ Most digital tools prioritize speed and capture. **Day by Day** is built for the
 
 ### Why this exists
 - **Visual Memory**: Instead of a linear list of dates, your reflections form a constellation. Proximity in the atlas is determined by topic and time, allowing you to see the "shape" of your life.
-- **Privacy as a Default**: Your reflections are yours. Everything stays in your browser. There are no accounts, no server, and no sync.
+- **Privacy as a Default**: Your reflections are yours. Everything stays in your browser. There are no accounts and no sync. The only optional network feature is the anonymous, opt-in [shared sky](#shared-sky-optional-opt-in), which is off by default and never sees your words or photos.
 - **Curated Friction**: The app uses a "flip card" mechanic for prompts to encourage a moment of pause before you begin writing.
 
 ## Technology & Design Decisions
@@ -61,7 +61,7 @@ tests, the build and the e2e smoke test on every push and pull request. `format:
 because existing files have not been reformatted with Prettier; format only the files you add.
 
 ### Deployment
-This project is deployed as a static site on Cloudflare Pages (see `wrangler.toml`). There is no backend. To build and preview:
+This project is deployed as a static site on Cloudflare Pages (see `wrangler.toml`). There is no backend for your journal. (The optional anonymous shared sky uses a small [Convex](https://convex.dev) project; see [Shared sky](#shared-sky-optional-opt-in). Without it the app is purely static.) To build and preview:
 ```bash
 npm run build
 npm run preview
@@ -71,7 +71,35 @@ The service worker is generated only in production builds, so test offline behav
 ## Privacy Note
 By default, journal entries are stored in your browser's local storage as JSON, and photos are compressed (max 1600px, WebP/JPEG) and stored in the browser's IndexedDB on this device. Clearing your browser data will remove your entries unless you exported a backup. Exports embed photos so a backup file is self-contained.
 
-Your entries are never sent to a server, and the app makes **no third-party requests**: fonts (Cormorant Garamond and Instrument Serif, from `@fontsource`) are self-hosted and bundled with the app, and the only network requests go to the app's own origin for its code, prompt library and icons, all of which are cached for offline use. Earlier versions offered optional cloud sync; that has been removed, and any leftover sync settings in your browser are cleaned up automatically.
+Your entries are never sent to a server, and by default the app makes **no third-party requests**: fonts (Cormorant Garamond and Instrument Serif, from `@fontsource`) are self-hosted and bundled with the app, and the only network requests go to the app's own origin for its code, prompt library and icons, all of which are cached for offline use. Earlier versions offered optional cloud sync; that has been removed, and any leftover sync settings in your browser are cleaned up automatically. The one exception is the opt-in shared sky below, which is off until you switch it on in the Backup & restore sheet, and even then only ever sends anonymous stars.
+
+### Shared sky (optional, opt-in)
+A quiet "universe of reflection" (issue #3, phase 2): see other people's stars for **today** and add your own. It is **off by default**, it can be switched off at any time, and it is hidden entirely unless the site was built with a Convex URL.
+
+**What leaves your device, only when the switch is on, one star per new reflection:**
+
+| Sent | Not sent, ever |
+|---|---|
+| a random anonymous device code (a UUID made on your device) | your text, photos, prompts, follow-ups |
+| the star's topic (one of ten) | the entry id, the exact time, your name, email or any account |
+| its depth (gentle, deeper, bold, ethereal) | anything about your journal beyond those fields |
+| the day (your local `YYYY-MM-DD`) | |
+| a random number used only to place the star | |
+
+- **Opt-in and offline-safe.** With the switch off, or without a Convex URL, the app makes zero network requests and the Convex client is not even downloaded (it is a lazily loaded chunk, and absent from the build when no URL is configured). Offline or on any error the shared layer simply hides; stars made offline are queued locally and published once, when you are back online (an entry never publishes twice).
+- **Today only.** The atlas chip **Today's sky** draws others' stars as faint, small, topic-tinted points in the crisp SVG layer (never in the cached painting), placed deterministically from each star's random number; yours stay brighter. A polite live line reads, for example, "412 others reflected today". The layer is decorative (`aria-hidden`), and its twinkle respects reduced motion.
+- **Retention.** The server keeps a star for at most 3 days: a daily cron (`convex/crons.ts`) deletes older ones. At most 10 stars per device per day are accepted, and only days within one day of the server's date.
+- **Withdrawal.** **Stop sharing & remove my stars** (after a confirmation) deletes every star stored under your device code, turns sharing off and throws the code away (a new one is made if you ever turn sharing on again). Turning the switch off alone stops new stars but leaves those already shared until they expire after 3 days. Withdrawal needs a connection; if it fails nothing changes and you can retry.
+- **Backend code.** `convex/` (schema, `stars.ts`: `publish`, `today`, `countToday`, `withdraw`, internal `cleanup`; `crons.ts`) with all validation in the plain, unit-tested `shared/star-rules.js`. The client is `shared/shared-sky.js` (network, queue, idempotency) and `shared/shared-ui.js` (settings section, chip, atlas layer).
+
+**Setting it up (owner, once):**
+1. `npm install` (adds the `convex` package).
+2. Create a project at [convex.dev](https://convex.dev) and run `npx convex dev` (log in when asked). It generates `convex/_generated/`, pushes `schema.ts`, `stars.ts` and `crons.ts` to a dev deployment, and prints its URL (`https://<name>.convex.cloud`).
+3. Copy `.env.example` to `.env.local` and set `VITE_CONVEX_URL` to that URL, then `npm run dev` to try it. The Shared sky section now appears in the Backup & restore sheet.
+4. For production run `npx convex deploy` (creates/updates the production deployment) and set `VITE_CONVEX_URL` to the **production** URL in the Cloudflare Pages build environment (Settings, Variables and Secrets, for Production), then redeploy the site. The variable is read at build time.
+5. To switch the feature off for everyone, remove `VITE_CONVEX_URL` and rebuild; the section and all network code disappear. To wipe the data, clear the `stars` table in the Convex dashboard.
+
+The service worker never touches Convex: it only precaches same-origin build files and has no runtime caching, and Convex talks over a cross-origin WebSocket that service workers do not intercept.
 
 ### Why no daily reminder?
 A reliable daily reminder needs Web Push, which means a push server holding a subscription for your device. That is a backend, and Day by Day deliberately has none. Browser-only alternatives (notification triggers, periodic background sync) are not available across browsers, and on iOS not at all, so a reminder would fire unreliably. Use your phone's own alarm or calendar instead.
