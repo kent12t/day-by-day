@@ -16,6 +16,11 @@ Follow it when planning, editing, testing, and validating changes.
 - `styles.css`: theme tokens, layout, animations, responsive behavior.
 - `vite.config.js`: Vite build/dev configuration.
 - `public/prompts.v1.core.json`: prompt dataset.
+- `atlas/`: the painted Sky Atlas (adapted from the owner's paint-generator/studio stroke painter):
+  - `brush.js` stroke engine, `draw.js` underpainting helpers, `sky-scene.js` the night-sky scene;
+  - `paint-worker.js` paints off the main thread (OffscreenCanvas), `sky-painter.js` caches (memory + IndexedDB) and falls back to the main thread;
+  - `atlas-view.js` the painted `<canvas>` layer behind the SVG and the crisp star cores, ink links, burst and comet.
+  - Bump `PAINT_VERSION` in `sky-painter.js` whenever the scene or brush changes. Painting code must never use `Math.random`.
 - `wrangler.toml`: Cloudflare Pages output settings.
 - `README.md`: philosophy, architecture intent, local dev notes.
 

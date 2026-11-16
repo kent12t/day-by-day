@@ -1,3 +1,5 @@
+import { createPaintedSky, renderAtlasOverlay } from "./atlas/atlas-view.js";
+
 const STORAGE_KEY = "dayByDay.entries.v1";
 const PROMPT_ROTATION_KEY = "dayByDay.promptRotation.v1";
 const SYNC_META_KEY = "dayByDay.sync.meta.v1";
@@ -138,6 +140,7 @@ const zoomInBtn = document.querySelector("#zoomInBtn");
 const zoomOutBtn = document.querySelector("#zoomOutBtn");
 const recenterBtn = document.querySelector("#recenterBtn");
 const focusLatestBtn = document.querySelector("#focusLatestBtn");
+const paintedSky = createPaintedSky({ svg: skyAtlas, world: { width: WORLD_WIDTH, height: WORLD_HEIGHT } });
 
 init();
 
@@ -580,136 +583,27 @@ function renderSkyAtlas(newEntry) {
 
   skyMeta.textContent = `${state.entries.length} reflection${state.entries.length === 1 ? "" : "s"} so far`;
 
-  renderAtmosphere();
-  renderNebula(nodes);
-
-  links.forEach((link) => {
-    const line = createSvg("line", {
-      x1: link.from.x,
-      y1: link.from.y,
-      x2: link.to.x,
-      y2: link.to.y,
-      stroke: "rgba(235, 244, 255, 0.28)",
-      "stroke-width": String(link.strength),
-      "stroke-linecap": "round",
-    });
-    linkLayer.append(line);
-  });
-
-  nodes.forEach((node, index) => {
-    const entry = state.entries[index];
-    const fill = TOPIC_COLORS[node.topic] || TOPIC_COLORS.self;
-    const shape = makeNodeShape(node, fill);
-    shape.classList.add("node");
-    shape.style.animationDelay = `${(index % 9) * 0.31}s`;
-    shape.setAttribute("filter", "url(#softGlow)");
-    shape.setAttribute("tabindex", "0");
-    shape.setAttribute("role", "button");
-    shape.setAttribute("aria-label", `${TOPIC_LABELS[node.topic]} entry`);
-    shape.addEventListener("click", (event) => {
-      if (state.atlas.clickBlocked) return;
-      showAtlasPopup(entry, event);
-    });
-    nodeLayer.append(shape);
-  });
-
-  if (newEntry) {
-    const freshNode = nodes[nodes.length - 1];
-    const burst = createSvg("circle", {
-      cx: freshNode.x,
-      cy: freshNode.y,
-      r: "22",
-      fill: "none",
-      stroke: "rgba(253, 218, 166, 0.82)",
-      "stroke-width": "2",
-    });
-    burst.classList.add("new-burst");
-    eventLayer.append(burst);
-  }
-
-  if (MILESTONES.has(state.entries.length)) {
-    const comet = createSvg("path", {
-      d: "M 180 140 Q 680 50 1340 210",
-      stroke: "rgba(255, 229, 184, 0.82)",
-      "stroke-width": "3",
-      "stroke-linecap": "round",
-      "stroke-dasharray": "8 11",
-      fill: "none",
-    });
-    eventLayer.append(comet);
-  }
-}
-
-function makeNodeShape(node, fill) {
-  if (node.shape === "diamond") {
-    return createSvg("path", {
-      d: `M ${node.x} ${node.y - node.size} L ${node.x + node.size} ${node.y} L ${node.x} ${node.y + node.size} L ${node.x - node.size} ${node.y} Z`,
-      fill,
-    });
-  }
-
-  if (node.shape === "spark") {
-    return createSvg("path", {
-      d: `M ${node.x} ${node.y - node.size} L ${node.x + node.size * 0.3} ${node.y - node.size * 0.3} L ${node.x + node.size} ${node.y} L ${node.x + node.size * 0.3} ${node.y + node.size * 0.3} L ${node.x} ${node.y + node.size} L ${node.x - node.size * 0.3} ${node.y + node.size * 0.3} L ${node.x - node.size} ${node.y} L ${node.x - node.size * 0.3} ${node.y - node.size * 0.3} Z`,
-      fill,
-    });
-  }
-
-  return createSvg("circle", {
-    cx: node.x,
-    cy: node.y,
-    r: node.size,
-    fill,
-  });
-}
-
-function renderAtmosphere() {
-  for (let i = 0; i < 36; i += 1) {
-    const rng = mulberry32(hashString(`ambient-${i}`));
-    const dot = createSvg("circle", {
-      cx: String(26 + rng() * (WORLD_WIDTH - 52)),
-      cy: String(26 + rng() * (WORLD_HEIGHT - 52)),
-      r: String(0.9 + rng() * 1.8),
-      fill: "rgba(220, 236, 255, 0.5)",
-    });
-    dot.classList.add("ambient-dot");
-    dot.style.animationDelay = `${rng() * 3}s`;
-    atmosphereLayer.append(dot);
-  }
-
-  const variety = new Set(state.entries.slice(-7).map((entry) => entry.topic)).size;
-  if (variety >= 3) {
-    const aurora = createSvg("path", {
-      d: "M 0 640 Q 340 560 700 620 T 1600 580",
-      stroke: "rgba(153, 210, 255, 0.24)",
-      "stroke-width": "38",
-      fill: "none",
-      opacity: "0.82",
-    });
-    aurora.setAttribute("filter", "url(#nebulaBlur)");
-    atmosphereLayer.append(aurora);
-  }
-}
-
-function renderNebula(nodes) {
-  const deepNodes = nodes.filter((node) => node.depth !== "gentle");
-  deepNodes.forEach((node, index) => {
-    if (index % 2 !== 0) return;
-    const cloud = createSvg("ellipse", {
-      cx: node.x,
-      cy: node.y,
-      rx: String(34 + (index % 3) * 11),
-      ry: String(16 + (index % 4) * 7),
-      fill: "rgba(166, 145, 255, 0.19)",
-      opacity: "0.48",
-    });
-    cloud.setAttribute("filter", "url(#nebulaBlur)");
-    nebulaLayer.append(cloud);
-  });
+  // the painted sky (milky way, nebulae, glows) repaints off the main thread only when the entries change
+  paintedSky.update(nodes);
 
   if (!nodes.length) {
     renderWrappedAtlasHint("Your first reflection will light this atlas.");
   }
+
+  renderAtlasOverlay({
+    svg: skyAtlas,
+    linkLayer,
+    nodeLayer,
+    eventLayer,
+    nodes,
+    links,
+    entries: state.entries,
+    labels: TOPIC_LABELS,
+    newEntry,
+    milestone: MILESTONES.has(state.entries.length),
+    onSelect: (entry, event) => showAtlasPopup(entry, event),
+    isClickBlocked: () => state.atlas.clickBlocked,
+  });
 }
 
 function renderWrappedAtlasHint(message) {
@@ -1008,6 +902,7 @@ function applyAtlasTransform() {
     "transform",
     `matrix(${state.atlas.zoom.toFixed(3)} 0 0 ${state.atlas.zoom.toFixed(3)} ${state.atlas.x.toFixed(2)} ${state.atlas.y.toFixed(2)})`
   );
+  paintedSky.setTransform(state.atlas.zoom, state.atlas.x, state.atlas.y, state.atlas.viewportWidth, state.atlas.viewportHeight);
 }
 
 function recenterLatestEntry() {
