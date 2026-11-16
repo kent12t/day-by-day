@@ -32,5 +32,8 @@
     "vite": "^6.1.0",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "~4.0.18"
+  },
+  "dependencies": {
+    "convex": "^1.50.0"
   }
 }
