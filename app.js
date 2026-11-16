@@ -1,4 +1,5 @@
 import { createPaintedSky, renderAtlasOverlay } from "./atlas/atlas-view.js";
+import { TOPIC_COLORS } from "./atlas/sky-scene.js";
 import {
   blobToDataUrl,
   compressImage,
@@ -29,7 +30,13 @@ import {
 const STORAGE_KEY = "dayByDay.entries.v1";
 const PROMPT_ROTATION_KEY = "dayByDay.promptRotation.v1";
 const LEGACY_SYNC_KEYS = ["dayByDay.sync.meta.v1", "dayByDay.sync.deletes.v1"];
+const ATLAS_HINT_KEY = "dayByDay.atlasHintSeen.v1";
 const MILESTONES = new Set([7, 30, 100, 180, 365]);
+const ATLAS_HINT_MS = 6500;
+const TOAST_MIN_MS = 2500;
+const TOAST_MAX_MS = 9000;
+const TOAST_MS_PER_CHAR = 55;
+const VIEW_TITLES = { atlas: "Day by Day", reflect: "Reflect · Day by Day", memories: "Memories · Day by Day" };
 
 const WORLD_WIDTH = 1600;
 const WORLD_HEIGHT = 900;
@@ -46,20 +53,6 @@ const TOPIC_LABELS = {
   spirit: "Spirit",
   legacy: "Legacy",
   wildcard: "Wildcard",
-};
-
-const TOPIC_COLORS = {
-  self: "#ffd58a",
-  relationships: "#f6a7bd",
-  work: "#9bbcff",
-  body: "#8dd8c5",
-  gratitude: "#d8a5f0",
-  dreams: "#8fd8ff",
-  creativity: "#ffb347",
-  nature: "#90be6d",
-  spirit: "#9a8c98",
-  legacy: "#e29578",
-  wildcard: "#ffe58f",
 };
 
 const TOPIC_CENTERS = {
@@ -100,12 +93,17 @@ const state = {
     y: 0,
     dragging: false,
     pointerId: null,
+    pointers: new Map(),
+    pinch: null,
     lastX: 0,
     lastY: 0,
     dragDistance: 0,
     clickBlocked: false,
+    panFrame: 0,
   },
   latestNode: null,
+  atlasNodes: [],
+  focusedStarId: "",
   memoryFilter: { topic: "all", query: "" },
   memoryVisibleCount: MEMORY_PAGE_SIZE,
   memorySheet: {
@@ -123,6 +121,11 @@ const state = {
 let memoryThumbObserver = null;
 let loadMoreObserver = null;
 let atlasReturnFocus = null;
+let atlasHintTimer = 0;
+let toastTimer = 0;
+let toastRemaining = 0;
+let toastShownAt = 0;
+let toastHeld = false;
 const memoryThumbUrls = new Map();
 
 const viewSections = [...document.querySelectorAll(".view")];
@@ -185,6 +188,16 @@ const editMemoryBtn = document.querySelector("#editMemoryBtn");
 const deleteMemoryBtn = document.querySelector("#deleteMemoryBtn");
 const cancelEditMemoryBtn = document.querySelector("#cancelEditMemoryBtn");
 const saveEditMemoryBtn = document.querySelector("#saveEditMemoryBtn");
+const memoriesHeading = document.querySelector("#memoriesHeading");
+const openSettingsBtn = document.querySelector("#openSettingsBtn");
+const settingsOverlay = document.querySelector("#settingsOverlay");
+const settingsSheet = document.querySelector("#settingsSheet");
+const closeSettingsBtn = document.querySelector("#closeSettingsBtn");
+const exportSummary = document.querySelector("#exportSummary");
+const skipAtlasLink = document.querySelector("#skipAtlasLink");
+const atlasView = document.querySelector('.view[data-view="atlas"]');
+const atlasStage = document.querySelector("#atlasStage");
+const atlasHint = document.querySelector("#atlasHint");
 const exportDataBtn = document.querySelector("#exportDataBtn");
 const importDataBtn = document.querySelector("#importDataBtn");
 const importDataInput = document.querySelector("#importDataInput");
@@ -214,6 +227,10 @@ init();
 
 async function init() {
   removeLegacySyncKeys();
+  applyTopicPalette();
+  applyTimeOfDay();
+  setInterval(applyTimeOfDay, 10 * 60 * 1000);
+  setActiveView(state.activeView);
 
   try {
     const res = await fetch("./prompts.v1.core.json");
@@ -233,8 +250,27 @@ async function init() {
   renderMemoryFilters();
   renderHistory();
   bindEvents();
+  maybeShowAtlasHint();
   openViewFromUrl();
   await migrateLegacyPhotoStorage();
+}
+
+// TOPIC_COLORS (shared with the sky painter) is the source of truth; styles.css carries the same values as fallbacks.
+function applyTopicPalette() {
+  const root = document.documentElement;
+  Object.entries(TOPIC_COLORS).forEach(([topic, color]) => root.style.setProperty(`--${topic}`, color));
+}
+
+function timeOfDayFor(hour) {
+  if (hour >= 5 && hour < 8) return "dawn";
+  if (hour >= 8 && hour < 17) return "day";
+  if (hour >= 17 && hour < 21) return "dusk";
+  return "night";
+}
+
+// A faint tint on the UI chrome only; the painted sky is never repainted for it.
+function applyTimeOfDay() {
+  document.body.dataset.time = timeOfDayFor(new Date().getHours());
 }
 
 // Honours ?view=reflect|memories (PWA shortcuts, issue #8).
@@ -248,9 +284,17 @@ function bindEvents() {
     button.addEventListener("click", () => setActiveView(button.dataset.go));
   });
 
-  revealPromptBtn.addEventListener("click", () => {
-    promptFlipCard.classList.add("revealed");
-    if (!state.selectedPrompt) pickPrompt();
+  skipAtlasLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    setActiveView("memories");
+    memoriesHeading.focus({ preventScroll: true });
+  });
+
+  revealPromptBtn.addEventListener("click", () => revealPromptCard({ moveFocus: true }));
+
+  // The card itself is a physical object: tapping its face turns it too (the button is the keyboard path).
+  promptFlipCard.addEventListener("click", () => {
+    if (!promptFlipCard.classList.contains("revealed")) revealPromptCard({ moveFocus: false });
   });
 
   customizeToggleBtn.addEventListener("click", () => {
@@ -376,9 +420,20 @@ function bindEvents() {
   cancelDeleteBtn.addEventListener("click", closeDeleteConfirm);
   confirmDeleteBtn.addEventListener("click", deleteSelectedMemory);
 
+  openSettingsBtn.addEventListener("click", openSettingsSheet);
+  closeSettingsBtn.addEventListener("click", closeSettingsSheet);
+  settingsOverlay.addEventListener("click", (event) => {
+    if (event.target === settingsOverlay) closeSettingsSheet();
+  });
+
   exportDataBtn.addEventListener("click", exportEntries);
   importDataBtn.addEventListener("click", () => importDataInput.click());
   importDataInput.addEventListener("change", importEntriesFromFile);
+
+  toast.addEventListener("mouseenter", holdToast);
+  toast.addEventListener("mouseleave", releaseToast);
+  toast.addEventListener("focusin", holdToast);
+  toast.addEventListener("focusout", releaseToast);
 
   confirmOverlay.addEventListener("click", (event) => {
     if (event.target === confirmOverlay) {
@@ -397,57 +452,40 @@ function bindEvents() {
     "wheel",
     (event) => {
       event.preventDefault();
-      zoomAtlas(event.deltaY > 0 ? -0.08 : 0.08, event.offsetX, event.offsetY);
+      dismissAtlasHint();
+      const rect = skyAtlas.getBoundingClientRect();
+      // trackpad pinches arrive as ctrl+wheel with small deltas; mouse wheels as larger steps
+      const step = clamp(-event.deltaY * (event.ctrlKey ? 0.012 : 0.0012), -0.2, 0.2);
+      zoomAtlas(step, event.clientX - rect.left, event.clientY - rect.top);
     },
     { passive: false }
   );
 
-  skyAtlas.addEventListener("pointerdown", (event) => {
-    state.atlas.dragging = true;
-    state.atlas.pointerId = event.pointerId;
-    state.atlas.lastX = event.clientX;
-    state.atlas.lastY = event.clientY;
-    state.atlas.dragDistance = 0;
-    skyAtlas.classList.add("dragging");
-    skyAtlas.setPointerCapture(event.pointerId);
+  skyAtlas.addEventListener("pointerdown", handleAtlasPointerDown);
+  skyAtlas.addEventListener("pointermove", handleAtlasPointerMove);
+  skyAtlas.addEventListener("pointerup", handleAtlasPointerEnd);
+  skyAtlas.addEventListener("pointercancel", handleAtlasPointerEnd);
+
+  nodeLayer.addEventListener("keydown", handleStarKeydown);
+  nodeLayer.addEventListener("focusin", (event) => {
+    const star = event.target.closest(".atlas-star");
+    if (!star) return;
+    setRovingStar(star);
+    keepNodeInView(state.atlasNodes[atlasStars().indexOf(star)]);
+  });
+
+  // Browsers without overflow: clip may still scroll the stage to reveal a focused star; undo it (we pan instead).
+  atlasStage.addEventListener("scroll", () => {
+    atlasStage.scrollLeft = 0;
+    atlasStage.scrollTop = 0;
+  });
+
+  atlasView.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || atlasPopup.classList.contains("hidden")) return;
+    event.preventDefault();
     hideAtlasPopup();
+    if (atlasReturnFocus && atlasReturnFocus.isConnected) atlasReturnFocus.focus({ preventScroll: true });
   });
-
-  skyAtlas.addEventListener("pointermove", (event) => {
-    if (!state.atlas.dragging || state.atlas.pointerId !== event.pointerId) return;
-    const dx = event.clientX - state.atlas.lastX;
-    const dy = event.clientY - state.atlas.lastY;
-    state.atlas.dragDistance += Math.abs(dx) + Math.abs(dy);
-    const viewUnitsX = (dx / skyAtlas.clientWidth) * state.atlas.viewportWidth;
-    const viewUnitsY = (dy / skyAtlas.clientHeight) * state.atlas.viewportHeight;
-
-    state.atlas.x += viewUnitsX;
-    state.atlas.y += viewUnitsY;
-    state.atlas.lastX = event.clientX;
-    state.atlas.lastY = event.clientY;
-
-    clampAtlasPosition();
-    applyAtlasTransform();
-  });
-
-  const endDrag = (event) => {
-    if (state.atlas.pointerId !== null && event.pointerId !== state.atlas.pointerId) return;
-
-    if (state.atlas.dragDistance > 6) {
-      state.atlas.clickBlocked = true;
-      setTimeout(() => {
-        state.atlas.clickBlocked = false;
-      }, 120);
-    }
-
-    state.atlas.dragging = false;
-    state.atlas.pointerId = null;
-    state.atlas.dragDistance = 0;
-    skyAtlas.classList.remove("dragging");
-  };
-
-  skyAtlas.addEventListener("pointerup", endDrag);
-  skyAtlas.addEventListener("pointercancel", endDrag);
 
   window.addEventListener("pointerdown", (event) => {
     if (!event.target.closest("#skyAtlas") && !event.target.closest("#atlasPopup")) {
@@ -456,20 +494,278 @@ function bindEvents() {
   });
 }
 
+/* ---------- atlas gestures: one-finger pan, two-finger pinch zoom ---------- */
+function clientToViewport(clientX, clientY) {
+  const rect = skyAtlas.getBoundingClientRect();
+  return {
+    x: ((clientX - rect.left) / (rect.width || 1)) * state.atlas.viewportWidth,
+    y: ((clientY - rect.top) / (rect.height || 1)) * state.atlas.viewportHeight,
+  };
+}
+
+function startPinch() {
+  const [a, b] = [...state.atlas.pointers.values()];
+  const mid = clientToViewport((a.x + b.x) / 2, (a.y + b.y) / 2);
+  state.atlas.pinch = {
+    startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+    startZoom: state.atlas.zoom,
+    worldX: (mid.x - state.atlas.x) / state.atlas.zoom,
+    worldY: (mid.y - state.atlas.y) / state.atlas.zoom,
+  };
+}
+
+function updatePinch() {
+  const [a, b] = [...state.atlas.pointers.values()];
+  const pinch = state.atlas.pinch;
+  const mid = clientToViewport((a.x + b.x) / 2, (a.y + b.y) / 2);
+  const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+  state.atlas.zoom = clamp(pinch.startZoom * (distance / pinch.startDistance), state.atlas.minZoom, state.atlas.maxZoom);
+  // keep the world point first under the fingers' midpoint under it, so the pinch also pans
+  state.atlas.x = mid.x - pinch.worldX * state.atlas.zoom;
+  state.atlas.y = mid.y - pinch.worldY * state.atlas.zoom;
+  clampAtlasPosition();
+  applyAtlasTransform();
+}
+
+function handleAtlasPointerDown(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  cancelAtlasPan();
+  state.atlas.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  try {
+    skyAtlas.setPointerCapture(event.pointerId);
+  } catch (err) {
+    // capture can fail for synthetic pointers; panning still works without it
+  }
+  hideAtlasPopup();
+  dismissAtlasHint();
+
+  if (state.atlas.pointers.size === 1) {
+    state.atlas.dragging = true;
+    state.atlas.pointerId = event.pointerId;
+    state.atlas.lastX = event.clientX;
+    state.atlas.lastY = event.clientY;
+    state.atlas.dragDistance = 0;
+    skyAtlas.classList.add("dragging");
+    return;
+  }
+
+  if (state.atlas.pointers.size === 2) {
+    state.atlas.dragDistance += 100; // a pinch is never a tap
+    startPinch();
+  }
+}
+
+function handleAtlasPointerMove(event) {
+  const pointer = state.atlas.pointers.get(event.pointerId);
+  if (!pointer) return;
+  pointer.x = event.clientX;
+  pointer.y = event.clientY;
+
+  if (state.atlas.pinch && state.atlas.pointers.size >= 2) {
+    updatePinch();
+    return;
+  }
+
+  if (!state.atlas.dragging || state.atlas.pointerId !== event.pointerId) return;
+  const dx = event.clientX - state.atlas.lastX;
+  const dy = event.clientY - state.atlas.lastY;
+  state.atlas.dragDistance += Math.abs(dx) + Math.abs(dy);
+  state.atlas.x += (dx / (skyAtlas.clientWidth || 1)) * state.atlas.viewportWidth;
+  state.atlas.y += (dy / (skyAtlas.clientHeight || 1)) * state.atlas.viewportHeight;
+  state.atlas.lastX = event.clientX;
+  state.atlas.lastY = event.clientY;
+
+  clampAtlasPosition();
+  applyAtlasTransform();
+}
+
+function handleAtlasPointerEnd(event) {
+  if (!state.atlas.pointers.has(event.pointerId)) return;
+  state.atlas.pointers.delete(event.pointerId);
+
+  if (state.atlas.pinch && state.atlas.pointers.size < 2) {
+    state.atlas.pinch = null;
+    // carry on panning with the finger that stayed down
+    const [remainingId, remaining] = [...state.atlas.pointers.entries()][0] || [];
+    if (remaining) {
+      state.atlas.pointerId = remainingId;
+      state.atlas.lastX = remaining.x;
+      state.atlas.lastY = remaining.y;
+      return;
+    }
+  } else if (state.atlas.pointers.size >= 2) {
+    startPinch();
+    return;
+  } else if (state.atlas.pointers.size === 1) {
+    return;
+  }
+
+  if (state.atlas.dragDistance > 6) {
+    state.atlas.clickBlocked = true;
+    setTimeout(() => {
+      state.atlas.clickBlocked = false;
+    }, 120);
+  }
+
+  state.atlas.dragging = false;
+  state.atlas.pointerId = null;
+  state.atlas.dragDistance = 0;
+  skyAtlas.classList.remove("dragging");
+}
+
+/* ---------- atlas keyboard: roving focus between stars in date order ---------- */
+function atlasStars() {
+  return [...nodeLayer.querySelectorAll(".atlas-star")];
+}
+
+function setRovingStar(star) {
+  state.focusedStarId = star.dataset.entryId || "";
+  atlasStars().forEach((node) => node.setAttribute("tabindex", node === star ? "0" : "-1"));
+}
+
+function syncStarTabStops() {
+  const stars = atlasStars();
+  if (!stars.length) return;
+  const current = stars.find((star) => star.dataset.entryId === state.focusedStarId) || stars[stars.length - 1];
+  setRovingStar(current);
+}
+
+function handleStarKeydown(event) {
+  const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+  if (!keys.includes(event.key)) return;
+  const star = event.target.closest(".atlas-star");
+  const stars = atlasStars();
+  const index = stars.indexOf(star);
+  if (index < 0) return;
+  event.preventDefault();
+
+  let next = index;
+  if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = index - 1;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") next = index + 1;
+  if (event.key === "Home") next = 0;
+  if (event.key === "End") next = stars.length - 1;
+  next = clamp(next, 0, stars.length - 1);
+  if (next === index) return;
+
+  hideAtlasPopup();
+  stars[next].focus({ preventScroll: true }); // focusin updates the roving tab stop and pans the star into view
+}
+
+// Pans (gently, unless motion is reduced) so a node sits inside the uncluttered middle of the screen.
+function keepNodeInView(node) {
+  if (!node) return;
+  const { zoom, viewportWidth, viewportHeight } = state.atlas;
+  const sx = node.x * zoom + state.atlas.x;
+  const sy = node.y * zoom + state.atlas.y;
+  const marginX = Math.min(120, viewportWidth * 0.18);
+  const top = Math.min(130, viewportHeight * 0.2);
+  const bottom = Math.min(170, viewportHeight * 0.26);
+  const inside = sx > marginX && sx < viewportWidth - marginX && sy > top && sy < viewportHeight - bottom;
+  if (inside) return;
+  panAtlasTo(viewportWidth / 2 - zoom * node.x, (top + viewportHeight - bottom) / 2 - zoom * node.y);
+}
+
+function cancelAtlasPan() {
+  if (state.atlas.panFrame) cancelAnimationFrame(state.atlas.panFrame);
+  state.atlas.panFrame = 0;
+}
+
+function panAtlasTo(targetX, targetY) {
+  cancelAtlasPan();
+  const fromX = state.atlas.x;
+  const fromY = state.atlas.y;
+  state.atlas.x = targetX;
+  state.atlas.y = targetY;
+  clampAtlasPosition();
+  const toX = state.atlas.x;
+  const toY = state.atlas.y;
+
+  if (prefersReducedMotion()) {
+    applyAtlasTransform();
+    return;
+  }
+
+  const start = performance.now();
+  const duration = 320;
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    state.atlas.x = fromX + (toX - fromX) * eased;
+    state.atlas.y = fromY + (toY - fromY) * eased;
+    applyAtlasTransform();
+    state.atlas.panFrame = t < 1 ? requestAnimationFrame(step) : 0;
+  };
+  state.atlas.panFrame = requestAnimationFrame(step);
+}
+
+function prefersReducedMotion() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch (err) {
+    return false;
+  }
+}
+
+/* ---------- first-visit atlas hint ---------- */
+function maybeShowAtlasHint() {
+  let seen = false;
+  try {
+    seen = localStorage.getItem(ATLAS_HINT_KEY) === "1";
+  } catch (err) {
+    console.warn("Could not read the atlas hint flag:", err);
+  }
+  if (seen) return;
+  atlasHint.classList.remove("hidden");
+  requestAnimationFrame(() => atlasHint.classList.add("visible"));
+  atlasHintTimer = setTimeout(dismissAtlasHint, ATLAS_HINT_MS);
+}
+
+function dismissAtlasHint() {
+  if (atlasHint.classList.contains("hidden")) return;
+  clearTimeout(atlasHintTimer);
+  atlasHint.classList.remove("visible");
+  setTimeout(() => atlasHint.classList.add("hidden"), 900);
+  try {
+    localStorage.setItem(ATLAS_HINT_KEY, "1");
+  } catch (err) {
+    console.warn("Could not remember the atlas hint:", err);
+  }
+}
+
 function setActiveView(viewName) {
+  const changed = state.activeView !== viewName;
   state.activeView = viewName;
+  document.body.dataset.view = viewName;
+  document.title = VIEW_TITLES[viewName] || VIEW_TITLES.atlas;
 
   viewSections.forEach((section) => {
     section.classList.toggle("active", section.dataset.view === viewName);
   });
 
+  // The painted sky stays behind every view as a dimmed backdrop, but only the atlas view is interactive.
+  const atlasActive = viewName === "atlas";
+  atlasView.inert = !atlasActive;
+  atlasView.setAttribute("aria-hidden", String(!atlasActive));
+  skipAtlasLink.classList.toggle("hidden", !atlasActive);
+  if (!atlasActive) {
+    hideAtlasPopup();
+    dismissAtlasHint();
+  }
+
   navButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.go === viewName && button.classList.contains("nav-btn"));
+    const isCurrent = button.dataset.go === viewName;
+    button.classList.toggle("active", isCurrent);
+    if (isCurrent) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
 
-  if (viewName === "reflect") {
-    promptFlipCard.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  if (changed) window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function revealPromptCard({ moveFocus = false } = {}) {
+  promptFlipCard.classList.add("revealed");
+  if (!state.selectedPrompt && !state.customPromptActive) pickPrompt();
+  if (moveFocus) usePromptBtn.focus({ preventScroll: true });
 }
 
 function showCustomizePanel(mode = "custom") {
@@ -605,6 +901,7 @@ function pickPrompt() {
   const seed = `${dayKey}-${topic}-${state.selectedDepth}-${savedToday}`;
 
   state.selectedPrompt = pickRankedPrompt(relevant, seed, recentPromptIds, state.promptRotation);
+  promptFlipCard.dataset.topic = state.selectedPrompt.topic;
   promptKicker.textContent = TOPIC_LABELS[state.selectedPrompt.topic] || "Prompt";
   promptText.textContent = state.selectedPrompt.text;
   followUpText.textContent = state.selectedPrompt.followUp || "";
@@ -632,6 +929,7 @@ function stopCustomPrompt() {
 function renderCustomPromptCard() {
   if (!state.customPromptActive) return;
   const text = customPromptInput.value.trim();
+  promptFlipCard.dataset.topic = getCustomTopic();
   promptKicker.textContent = "Your own prompt";
   promptText.textContent = text || "Write the question you want to sit with.";
   followUpText.textContent = "";
@@ -786,9 +1084,11 @@ function renderSkyAtlas(newEntry) {
 
   const nodes = state.entries.map((entry, index) => generateNode(entry, index));
   state.latestNode = nodes[nodes.length - 1] || null;
+  state.atlasNodes = nodes;
   const links = makeLinks(nodes);
 
-  skyMeta.textContent = `${state.entries.length} reflection${state.entries.length === 1 ? "" : "s"} so far`;
+  const count = state.entries.length;
+  skyMeta.textContent = count ? `${count} reflection${count === 1 ? "" : "s"}` : "Your sky is waiting";
 
   // the painted sky (milky way, nebulae, glows) repaints off the main thread only when the entries change
   paintedSky.update(nodes);
@@ -810,7 +1110,9 @@ function renderSkyAtlas(newEntry) {
     milestone: MILESTONES.has(state.entries.length),
     onSelect: (entry, event) => showAtlasPopup(entry, event),
     isClickBlocked: () => state.atlas.clickBlocked,
+    describe: (entry, label) => `${label} reflection, ${formatEntryDay(entry.date, { weekday: "long", month: "long", day: "numeric" })}`,
   });
+  syncStarTabStops();
 }
 
 function renderWrappedAtlasHint(message) {
@@ -999,27 +1301,35 @@ function createMemoryCard(entry) {
   card.dataset.topic = entry.topic;
   card.setAttribute("aria-haspopup", "dialog");
 
-  const meta = document.createElement("span");
-  meta.className = "history-meta";
+  const head = document.createElement("span");
+  head.className = "memory-card-head";
   const dot = document.createElement("span");
   dot.className = "topic-dot";
   dot.setAttribute("aria-hidden", "true");
-  meta.append(dot, `${formatEntryDay(entry.date)} • ${TOPIC_LABELS[entry.topic] || entry.topic} • ${entry.depth}`);
+  const day = document.createElement("span");
+  day.className = "memory-date";
+  day.textContent = formatEntryDay(entry.date);
+  const topic = document.createElement("span");
+  topic.className = "memory-topic";
+  topic.textContent = TOPIC_LABELS[entry.topic] || entry.topic;
+  head.append(dot, day, topic, createDepthPips(entry.depth));
+  card.append(head);
 
-  const prompt = document.createElement("span");
-  prompt.className = "history-text";
-  prompt.textContent = entry.promptText;
-
-  card.append(meta, prompt);
-
-  if (entry.text) {
-    const note = document.createElement("span");
-    note.className = "history-meta history-note";
-    note.textContent = `"${truncate(entry.text, 150)}"`;
-    card.append(note);
+  const note = (entry.text || "").trim();
+  if (note) {
+    const noteNode = document.createElement("span");
+    noteNode.className = "memory-note";
+    noteNode.textContent = truncate(note.replace(/\s+/g, " "), 170);
+    card.append(noteNode);
   }
 
+  const prompt = document.createElement("span");
+  prompt.className = note ? "memory-prompt" : "memory-prompt solo";
+  prompt.textContent = entry.promptText;
+  card.append(prompt);
+
   if (entryHasPhoto(entry)) {
+    card.classList.add("has-photo");
     const img = document.createElement("img");
     img.className = "history-thumb";
     img.alt = "Reflection photo";
@@ -1030,6 +1340,24 @@ function createMemoryCard(entry) {
   }
 
   return card;
+}
+
+// Depth as one to four small marks; the word itself is there for screen readers.
+function createDepthPips(depth) {
+  const wrap = document.createElement("span");
+  wrap.className = "depth-pips";
+  const level = Math.max(0, DEPTHS.indexOf(depth)) + 1;
+  for (let i = 1; i <= DEPTHS.length; i += 1) {
+    const pip = document.createElement("span");
+    pip.className = i <= level ? "pip on" : "pip";
+    pip.setAttribute("aria-hidden", "true");
+    wrap.append(pip);
+  }
+  const label = document.createElement("span");
+  label.className = "sr-only";
+  label.textContent = `, ${depth} depth`;
+  wrap.append(label);
+  return wrap;
 }
 
 function formatEntryDay(dateValue, options = { weekday: "short", month: "short", day: "numeric" }) {
@@ -1650,7 +1978,10 @@ function showAtlasPopup(entry, event) {
   openBtn.textContent = "Open memory";
 
   atlasPopup.append(topic, date, excerpt, openBtn);
-  atlasReturnFocus = event?.target instanceof Element ? event.target : null;
+  const target = event?.target instanceof Element ? event.target : null;
+  const starTarget = target?.closest(".atlas-star") || nodeLayer.querySelector(`.atlas-star[data-entry-id="${CSS.escape(current.id)}"]`);
+  atlasReturnFocus = starTarget || target;
+  if (starTarget) setRovingStar(starTarget);
 
   // Keyboard-triggered events have no pointer position; anchor to the star instead.
   const svgRect = skyAtlas.getBoundingClientRect();
@@ -1666,7 +1997,9 @@ function showAtlasPopup(entry, event) {
   const halfWidth = Math.min(atlasPopup.offsetWidth, svgRect.width - 16) / 2;
   const x = clamp(clientX - svgRect.left, halfWidth + 8, Math.max(halfWidth + 8, svgRect.width - halfWidth - 8));
   const y = clamp(clientY - svgRect.top, 26, svgRect.height - 26);
-  atlasPopup.classList.toggle("below", y < atlasPopup.offsetHeight + 18);
+  // keep clear of the floating title: flip the popup below the star when it would rise into it
+  const titleBottom = document.querySelector(".title-wrap").getBoundingClientRect().bottom - svgRect.top;
+  atlasPopup.classList.toggle("below", y - atlasPopup.offsetHeight - 18 < Math.max(0, titleBottom + 6));
 
   atlasPopup.style.left = `${x}px`;
   atlasPopup.style.top = `${y}px`;
@@ -1795,17 +2128,60 @@ function removeLegacySyncKeys() {
   }
 }
 
+// Longer messages stay longer; hovering or focusing the toast holds it until the pointer or focus leaves.
+function toastDurationFor(message) {
+  return clamp(TOAST_MIN_MS + String(message).length * TOAST_MS_PER_CHAR, TOAST_MIN_MS, TOAST_MAX_MS);
+}
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("visible");
-  setTimeout(() => {
-    toast.classList.remove("visible");
-  }, 1900);
+  toastRemaining = toastDurationFor(message);
+  scheduleToastHide();
+}
+
+function scheduleToastHide() {
+  clearTimeout(toastTimer);
+  if (toastHeld) return;
+  toastShownAt = Date.now();
+  toastTimer = setTimeout(() => toast.classList.remove("visible"), toastRemaining);
+}
+
+function holdToast() {
+  if (!toast.classList.contains("visible") || toastHeld) return;
+  toastHeld = true;
+  clearTimeout(toastTimer);
+  toastRemaining = Math.max(1200, toastRemaining - (Date.now() - toastShownAt));
+}
+
+function releaseToast() {
+  if (!toastHeld) return;
+  toastHeld = false;
+  toastRemaining = Math.min(toastRemaining, 1800); // it has been read; let it go soon after
+  scheduleToastHide();
+}
+
+function openSettingsSheet() {
+  const count = state.entries.length;
+  exportSummary.textContent = count
+    ? `Saves a JSON file with all ${count} ${count === 1 ? "memory" : "memories"}, photos included.`
+    : "Nothing to export yet. Your first reflection will be here.";
+  openDialog({
+    overlay: settingsOverlay,
+    panel: settingsSheet,
+    returnFocus: openSettingsBtn,
+    initialFocus: closeSettingsBtn,
+    onRequestClose: closeSettingsSheet,
+  });
+}
+
+function closeSettingsSheet() {
+  closeDialog(settingsOverlay);
 }
 
 function truncate(value, maxLength) {
   if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1)}...`;
+  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function clamp(value, min, max) {

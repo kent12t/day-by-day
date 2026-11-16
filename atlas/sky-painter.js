@@ -9,7 +9,7 @@
 import { paintScene } from "./brush.js";
 import { makeSkyScene } from "./sky-scene.js";
 
-export const PAINT_VERSION = 1;
+export const PAINT_VERSION = 2;
 const PAINT_SEED = 7;
 const COLOUR_VARIANCE = 0.15;
 const IDB_NAME = "dayByDay.atlas";

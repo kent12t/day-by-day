@@ -165,7 +165,8 @@ function delegateCapturedClicks(svg) {
 }
 
 /* renderAtlasOverlay({ svg, linkLayer, nodeLayer, eventLayer, nodes, links, entries, labels, newEntry, milestone,
- *                      onSelect(entry, event), isClickBlocked() }) */
+ *                      onSelect(entry, event), isClickBlocked(), describe(entry, label)? })
+ * describe, when given, returns each star's accessible name; otherwise "{label} entry". */
 export function renderAtlasOverlay(o) {
   ensureDefs(o.svg);
   delegateCapturedClicks(o.svg);
@@ -183,7 +184,9 @@ export function renderAtlasOverlay(o) {
   o.nodes.forEach((node, index) => {
     const entry = o.entries[index];
     const label = o.labels[node.topic] || node.topic;
-    const star = svgEl("g", { class: "atlas-star", tabindex: "0", role: "button", "aria-label": `${label} entry` });
+    const name = typeof o.describe === "function" ? o.describe(entry, label) : `${label} entry`;
+    const star = svgEl("g", { class: "atlas-star", tabindex: "0", role: "button", "aria-label": name, "data-entry-id": entry ? entry.id : node.id });
+    star.append(svgEl("circle", { class: "atlas-star-ring", cx: node.x, cy: node.y, r: Math.max(10, node.size * 2.1), fill: "none" }));
     star.append(svgEl("circle", { class: "atlas-star-hit", cx: node.x, cy: node.y, r: Math.max(12, node.size * 2.4), fill: "transparent" }));
     const glow = svgEl("g", { class: "node" });
     glow.style.animationDelay = `${(index % 9) * 0.31}s`;

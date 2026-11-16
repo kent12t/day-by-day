@@ -84,8 +84,10 @@ Follow it when planning, editing, testing, and validating changes.
 When behavior changes, run `npm run dev` and verify:
 - Reflect flow: reveal prompt -> customize/use -> save entry.
 - Capture modes: offline, text, photo.
-- Atlas interactions: pan, zoom buttons, wheel zoom, recenter, latest star.
-- Memory interactions: expand card, delete confirmation, delete success.
+- Atlas interactions: pan, two-finger pinch zoom, zoom buttons, wheel zoom, recenter, latest star.
+- Atlas keyboard: Tab reaches one star (roving tabindex), Left/Right/Home/End move between stars in date order and pan them into view, Enter/Space opens the popup, Escape closes it; the "Skip the atlas" link jumps to Memories.
+- Memory interactions: open card, delete confirmation, delete success; Backup & restore sheet (gear icon) for export/import.
+- Topic colours: `TOPIC_COLORS` in `atlas/sky-scene.js` is the single palette (UI, CSS fallbacks in `styles.css`, and the painter's `MOONLIT`); bump `PAINT_VERSION` when it changes.
 - Persistence: reload page and confirm entries still render.
 - Empty state: no entries should show the guided atlas hint text.
 - Mobile checks: bottom nav, file input, touch drag/scroll behavior.

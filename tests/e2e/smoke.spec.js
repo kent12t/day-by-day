@@ -10,7 +10,7 @@ test("reveal a prompt, save an offline reflection, and find it again after reloa
   await page.goto("/");
   const nav = page.getByRole("navigation");
   const skyMeta = page.locator("#skyMeta");
-  await expect(skyMeta).toContainText("0 reflections");
+  await expect(skyMeta).toHaveText(/your sky is waiting|^0 reflections/i);
 
   // Reflect: reveal today's prompt and use it.
   await nav.getByRole("button", { name: /add reflection|reflect/i }).click();
