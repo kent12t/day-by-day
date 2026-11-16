@@ -233,7 +233,14 @@ async function init() {
   renderMemoryFilters();
   renderHistory();
   bindEvents();
+  openViewFromUrl();
   await migrateLegacyPhotoStorage();
+}
+
+// Honours ?view=reflect|memories (PWA shortcuts, issue #8).
+function openViewFromUrl() {
+  const view = new URLSearchParams(window.location.search).get("view");
+  if (view === "reflect" || view === "memories") setActiveView(view);
 }
 
 function bindEvents() {
