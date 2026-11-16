@@ -225,11 +225,75 @@ h2 {
 }
 
 #skyAtlas {
+  position: relative;
   width: 100%;
   height: 100%;
   display: block;
   cursor: grab;
   user-select: none;
+}
+
+/* the painted night sky sits behind the SVG and follows the same pan/zoom transform */
+.atlas-canvas {
+  background: var(--bg-0);
+}
+
+.atlas-paint {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.atlas-paint canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.atlas-paint-top {
+  opacity: 0;
+}
+
+.atlas-paint-top.is-fading {
+  transition: opacity 0.9s ease;
+}
+
+.atlas-paint-top.is-visible {
+  opacity: 1;
+}
+
+#skyBase {
+  transition: opacity 0.9s ease;
+}
+
+.atlas-canvas.is-painted #skyBase {
+  opacity: 0;
+}
+
+#nebulaLayer text {
+  paint-order: stroke;
+  stroke: rgba(6, 8, 24, 0.55);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.atlas-star {
+  cursor: pointer;
+  outline: none;
+}
+
+.atlas-star:focus-visible .atlas-star-hit {
+  stroke: rgba(243, 202, 143, 0.85);
+  stroke-width: 1.4;
+}
+
+.atlas-star-glint {
+  mix-blend-mode: screen;
 }
 
 .atlas-popup {
@@ -1055,7 +1119,19 @@ textarea:focus-visible,
 }
 
 .new-burst {
-  animation: pulseFade 1.4s ease-out forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulseFade 1.4s ease-out both;
+}
+
+.atlas-comet {
+  animation: fadeIn 1.6s ease-out both;
+}
+
+.new-burst,
+.atlas-comet,
+.atlas-ink {
+  pointer-events: none;
 }
 
 .hidden {

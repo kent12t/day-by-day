@@ -16,7 +16,7 @@ Most digital tools prioritize speed and capture. **Day by Day** is built for the
 ## Technology & Design Decisions
 
 - **Local-First Architecture**: Data is persisted via `localStorage` for full offline use. To move between devices, export a backup and import it on the other device.
-- **Procedural Cartography**: The Sky Atlas is generated using vanilla SVG and mathematical seeding. Links between stars are formed based on shared topics and temporal sequence.
+- **Procedural Cartography**: The Sky Atlas is a deterministic oil-style painting of a night sky (milky way, topic-tinted nebulae, a glow for every entry), repainted in a Web Worker from your entries by a small stroke engine in `atlas/` and cached locally in IndexedDB. Crisp SVG star cores and gold-ink constellation lines sit on top; links between stars are formed based on shared topics and temporal sequence.
 - **Minimalist Stack**: Built with vanilla JavaScript, CSS, and HTML5. Vite handles the build pipeline, keeping the footprint light and the performance high.
 - **Deterministic Prompts**: A curated library of prompts is selected based on a hash of the current date and your journaling history to ensure variety without repetition.
 
