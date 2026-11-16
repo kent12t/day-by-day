@@ -10,20 +10,41 @@
  * randomness comes from the painter's seeded rng; never Math.random. */
 import { lin, rad, glow, mix, rgba, withAlpha } from "./draw.js";
 
-/* topic -> [star hue, nebula tint]: TOPIC_COLORS curated toward a moonlit palette (paler stars, deeper clouds) */
-export const MOONLIT = {
-  self: ["#ffe6b0", "#8f7448"],
-  relationships: ["#ffc9d6", "#8c4a68"],
-  work: ["#c4d4ff", "#3d56a0"],
-  body: ["#bff2e4", "#2c7472"],
-  gratitude: ["#e8ccff", "#714a9a"],
-  dreams: ["#c6ecff", "#2d6894"],
-  creativity: ["#ffd496", "#9a5a2c"],
-  nature: ["#d0edb0", "#4a7240"],
-  spirit: ["#ddd2e6", "#5a4f72"],
-  legacy: ["#ffcab0", "#8e4c3e"],
-  wildcard: ["#fff2b8", "#857538"],
+/* The one topic palette, shared by the UI (app.js, and mirrored as --topic tokens in styles.css) and the painter.
+ * Curated toward the moonlit sky: star temperatures from blue-white through gold to copper, plus muted rose, teal,
+ * violet and sage, kept far enough apart to tell topics apart at a glance. */
+export const TOPIC_COLORS = {
+  self: "#f2cf7c", // gold
+  relationships: "#eda3bb", // muted rose
+  work: "#b9cbff", // blue-white
+  body: "#7fd0bb", // teal
+  gratitude: "#c9a4f2", // violet
+  dreams: "#86cdf0", // ice blue
+  creativity: "#f2a35e", // amber
+  nature: "#a9cc8c", // sage
+  spirit: "#a8a2cf", // dusk lavender
+  legacy: "#e07f6c", // copper
+  wildcard: "#fbe8b4", // moon cream
 };
+
+/* a deeper, richer cloud colour from a topic hue: same hue, more saturation, lower lightness */
+function nebulaTint(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  let h = 0;
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  const S = Math.min(1, s * 0.62), L = 0.36;
+  const c = (1 - Math.abs(2 * L - 1)) * S, x = c * (1 - Math.abs(((h % 6) + 6) % 6 % 2 - 1)), m = L - c / 2;
+  const sector = Math.floor(((h % 6) + 6) % 6);
+  const [rr, gg, bb] = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][sector];
+  return "#" + [rr, gg, bb].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
+}
+
+/* topic -> [star hue, nebula tint], derived from TOPIC_COLORS: paler, moonlit stars and deeper clouds */
+export const MOONLIT = Object.fromEntries(
+  Object.entries(TOPIC_COLORS).map(([topic, base]) => [topic, [mix(base, "#fffaf0", 0.4), nebulaTint(base)]])
+);
 const DEPTH_GLOW = { gentle: 1, deeper: 1.25, bold: 1.5, ethereal: 1.9 };
 
 /* the milky way's spine, in units: lower left to upper right with a slow wave */
