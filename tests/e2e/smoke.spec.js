@@ -43,3 +43,32 @@ test("reveal a prompt, save an offline reflection, and find it again after reloa
 
   expect(errors).toEqual([]);
 });
+
+// Insights (issue #11): optional mood on save, shown in the memory sheet, and the Insights sheet opens and closes.
+test("save a reflection with a mood and open Insights", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  await page.goto("/");
+  const nav = page.getByRole("navigation");
+  await nav.getByRole("button", { name: /add reflection|reflect/i }).click();
+  await page.locator("#revealPromptBtn").click();
+  await page.locator("#usePromptBtn").click();
+  await page.getByRole("button", { name: "Bright, 4 of 5" }).click();
+  await page.locator("#saveEntryBtn").click();
+  await expect(page.locator("#skyMeta")).toContainText("1 reflection");
+
+  await nav.getByRole("button", { name: "Memories", exact: true }).click();
+  await page.locator("#historyList .history-item").first().click();
+  await expect(page.locator("#memorySheetMood")).toHaveText("Mood: Bright");
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Insights" }).click();
+  const sheet = page.locator("#insightsSheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("1 night reflected this month.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+
+  expect(errors).toEqual([]);
+});

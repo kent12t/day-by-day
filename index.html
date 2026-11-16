@@ -34,6 +34,7 @@
         <path class="ink" d="M16.9 15.8l-1.8 3.6" />
       </symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" /></symbol>
+      <symbol id="i-insights" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" /><path d="M12 3.5v3.2M12 17.3v3.2M3.5 12h3.2M17.3 12h3.2M6 6l2.2 2.2M15.8 15.8L18 18M18 6l-2.2 2.2M8.2 15.8L6 18" /></symbol>
       <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15.5V4.5M7.5 9L12 4.5 16.5 9M5 19.5h14" /></symbol>
     </svg>
 
@@ -205,6 +206,10 @@
             </div>
           </div>
 
+          <div id="moodMount" class="mood-field">
+            <p class="input-label">Mood or energy <span class="optional-tag">optional</span></p>
+          </div>
+
           <button id="saveEntryBtn" class="primary-btn" type="button">Add this reflection to my atlas</button>
         </article>
       </section>
@@ -216,9 +221,14 @@
               <h2 id="memoriesHeading" tabindex="-1">Memories</h2>
               <p id="memoriesSummary" class="memories-summary">Every moment in your sky.</p>
             </div>
-            <button id="openSettingsBtn" class="icon-btn" type="button" aria-label="Backup and restore" aria-haspopup="dialog" data-tip="Backup">
-              <svg aria-hidden="true"><use href="#i-gear" /></svg>
-            </button>
+            <div class="head-actions">
+              <button id="openInsightsBtn" class="icon-btn" type="button" aria-label="Insights" aria-haspopup="dialog" data-tip="Insights">
+                <svg aria-hidden="true"><use href="#i-insights" /></svg>
+              </button>
+              <button id="openSettingsBtn" class="icon-btn" type="button" aria-label="Backup and restore" aria-haspopup="dialog" data-tip="Backup">
+                <svg aria-hidden="true"><use href="#i-gear" /></svg>
+              </button>
+            </div>
           </div>
           <div class="memory-toolbar">
             <label class="sr-only" for="memorySearchInput">Search memories</label>
@@ -294,6 +304,21 @@
       </section>
     </div>
 
+    <div id="insightsOverlay" class="sheet-overlay hidden">
+      <section id="insightsSheet" class="memory-sheet insights-sheet" role="dialog" aria-modal="true" aria-labelledby="insightsTitle">
+        <header class="sheet-header">
+          <div>
+            <p class="flip-kicker sheet-kicker">Insights</p>
+            <h3 id="insightsTitle">Your sky, gently</h3>
+          </div>
+          <button id="closeInsightsBtn" class="sheet-close" type="button" aria-label="Close insights">
+            <svg aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div id="insightsBody" class="sheet-body insights-body"></div>
+      </section>
+    </div>
+
     <div id="memorySheetOverlay" class="sheet-overlay hidden">
       <section
         id="memorySheet"
@@ -319,12 +344,16 @@
           <p id="memorySheetFollowUp" class="follow-up"></p>
 
           <div id="memorySheetView" class="sheet-section">
+            <p id="memorySheetMood" class="sheet-mood hidden"></p>
             <p id="memorySheetNoteLabel" class="input-label">Note</p>
             <p id="memorySheetNote" class="sheet-note"></p>
             <img id="memorySheetPhoto" class="sheet-photo hidden" alt="" />
           </div>
 
           <form id="memoryEditForm" class="sheet-section hidden" novalidate>
+            <div id="memoryEditMoodMount" class="mood-field">
+              <p class="input-label">Mood or energy <span class="optional-tag">optional</span></p>
+            </div>
             <label class="input-label" for="memoryEditText">Note</label>
             <textarea id="memoryEditText" class="text-input" rows="5" placeholder="Add or refine your note..."></textarea>
             <p class="input-label">Photo</p>

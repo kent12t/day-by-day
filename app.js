@@ -19,6 +19,10 @@ import {
   sortMemoriesNewestFirst,
 } from "./lib/memories.js";
 import { closeDialog, openDialog } from "./lib/dialog.js";
+import { moodLabel, normalizeMood } from "./lib/insights.js";
+import { canvasToBlob, downloadBlob, renderAtlasPoster } from "./atlas/poster.js";
+import { createInsightsSheet } from "./ui/insights-sheet.js";
+import { createMoodGlyph, createMoodPicker } from "./ui/mood-picker.js";
 import {
   chooseLeastUsedTopic,
   countEntriesOnDay,
@@ -171,6 +175,7 @@ const memorySheetKicker = document.querySelector("#memorySheetKicker");
 const memorySheetTitle = document.querySelector("#memorySheetTitle");
 const memorySheetMeta = document.querySelector("#memorySheetMeta");
 const memorySheetPrompt = document.querySelector("#memorySheetPrompt");
+const memorySheetMood = document.querySelector("#memorySheetMood");
 const memorySheetFollowUp = document.querySelector("#memorySheetFollowUp");
 const memorySheetView = document.querySelector("#memorySheetView");
 const memorySheetNoteLabel = document.querySelector("#memorySheetNoteLabel");
@@ -222,6 +227,25 @@ const zoomOutBtn = document.querySelector("#zoomOutBtn");
 const recenterBtn = document.querySelector("#recenterBtn");
 const focusLatestBtn = document.querySelector("#focusLatestBtn");
 const paintedSky = createPaintedSky({ svg: skyAtlas, world: { width: WORLD_WIDTH, height: WORLD_HEIGHT } });
+
+// Insights (issue #11): optional mood pickers (reflect form, memory edit) and the Insights sheet.
+const reflectMood = createMoodPicker();
+const editMood = createMoodPicker();
+document.querySelector("#moodMount").append(reflectMood.el);
+document.querySelector("#memoryEditMoodMount").append(editMood.el);
+const insightsSheet = createInsightsSheet({
+  overlay: document.querySelector("#insightsOverlay"),
+  sheet: document.querySelector("#insightsSheet"),
+  body: document.querySelector("#insightsBody"),
+  closeBtn: document.querySelector("#closeInsightsBtn"),
+  openBtn: document.querySelector("#openInsightsBtn"),
+  getEntries: () => state.entries,
+  topics: Object.keys(TOPIC_CENTERS),
+  labels: TOPIC_LABELS,
+  onOpenMemory: (entryId, trigger) => openMemorySheet(entryId, trigger),
+  onReflectTopic: reflectOnTopic,
+  onExportPoster: exportAtlasPoster,
+});
 
 init();
 
@@ -1028,6 +1052,7 @@ async function saveEntry() {
     photoRef: "",
     photoSynced: state.selectedMode !== "photo",
     updatedAt: now.toISOString(),
+    ...(reflectMood.get() ? { mood: reflectMood.get() } : {}),
   };
 
   state.savingEntry = true;
@@ -1059,6 +1084,7 @@ async function saveEntry() {
   }
 
   journalText.value = "";
+  reflectMood.set(null);
   clearSelectedPhoto();
   if (state.customPromptActive) {
     customPromptInput.value = "";
@@ -1112,7 +1138,48 @@ function renderSkyAtlas(newEntry) {
     isClickBlocked: () => state.atlas.clickBlocked,
     describe: (entry, label) => `${label} reflection, ${formatEntryDay(entry.date, { weekday: "long", month: "long", day: "numeric" })}`,
   });
+  applyMoodGlow();
   syncStarTabStops();
+}
+
+// A mood subtly brightens or softens a star's glow in the crisp overlay only; the cached painting is untouched.
+function applyMoodGlow() {
+  state.entries.forEach((entry) => {
+    const mood = normalizeMood(entry.mood);
+    if (!mood) return;
+    const star = nodeLayer.querySelector(`.atlas-star[data-entry-id="${CSS.escape(entry.id)}"]`);
+    if (star) star.dataset.mood = String(mood);
+  });
+}
+
+// Insights -> "Reflect on <topic>": open the reflect view with that topic chosen and today's prompt for it.
+function reflectOnTopic(topic) {
+  stopCustomPrompt();
+  state.selectedTopic = topic;
+  renderTopics();
+  pickPrompt();
+  resetPromptDecisionFlow();
+  setActiveView("reflect");
+  revealPromptCard({ moveFocus: true });
+}
+
+async function exportAtlasPoster() {
+  try {
+    const { canvas } = await renderAtlasPoster({
+      svg: skyAtlas,
+      nodes: state.atlasNodes,
+      links: makeLinks(state.atlasNodes),
+      world: { width: WORLD_WIDTH, height: WORLD_HEIGHT },
+      paintWidth: WORLD_WIDTH,
+      moods: Object.fromEntries(state.entries.filter((entry) => normalizeMood(entry.mood)).map((entry) => [entry.id, entry.mood])),
+      count: state.entries.length,
+    });
+    downloadBlob(await canvasToBlob(canvas), `day-by-day-atlas-${localDayKey()}.png`);
+    showToast("Atlas poster saved.");
+  } catch (err) {
+    console.error("Poster export failed:", err);
+    showToast("Could not make the poster.");
+  }
 }
 
 function renderWrappedAtlasHint(message) {
@@ -1500,6 +1567,15 @@ function renderMemorySheet(entry) {
   memorySheetFollowUp.textContent = entry.followUp || "";
   memorySheetFollowUp.classList.toggle("hidden", !entry.followUp);
 
+  const mood = normalizeMood(entry.mood);
+  memorySheetMood.classList.toggle("hidden", !mood);
+  memorySheetMood.replaceChildren();
+  if (mood) {
+    const text = document.createElement("span");
+    text.textContent = `Mood: ${moodLabel(mood)}`;
+    memorySheetMood.append(createMoodGlyph(mood), text);
+  }
+
   memorySheetNoteLabel.classList.toggle("hidden", !entry.text);
   memorySheetNote.textContent = entry.text || (entry.mode === "offline" ? "You wrote this one offline." : "");
   memorySheetNote.classList.toggle("muted", !entry.text);
@@ -1544,6 +1620,7 @@ function closeMemorySheet({ restoreFocus = true } = {}) {
   releaseSheetPhoto();
   state.memorySheet.entryId = "";
   closeDialog(memorySheetOverlay, { restoreFocus });
+  insightsSheet.refresh();
 }
 
 function setMemoryEditing(editing) {
@@ -1572,6 +1649,7 @@ function startMemoryEdit() {
 
   resetMemoryEditState();
   memoryEditText.value = entry.text || "";
+  editMood.set(entry.mood);
   if (memorySheetPhoto.getAttribute("src")) {
     memoryEditPreview.src = memorySheetPhoto.src;
     memoryEditPreview.classList.remove("hidden");
@@ -1636,6 +1714,8 @@ async function saveMemoryEdit() {
   const original = state.entries[index];
   // id, date and topic stay fixed so the star keeps its place in the atlas.
   const updated = { ...original, text: memoryEditText.value.trim(), updatedAt: new Date().toISOString() };
+  if (editMood.get()) updated.mood = editMood.get();
+  else delete updated.mood;
   const photoChanged = Boolean(sheet.editBlob) || (sheet.removePhoto && entryHasPhoto(original));
 
   sheet.saving = true;
@@ -2089,6 +2169,7 @@ function normalizeEntry(entry) {
     typeof entry.photoSynced === "boolean" ? entry.photoSynced : !(photoDataUrl && photoDataUrl.startsWith("data:"));
   const updatedAt =
     typeof entry.updatedAt === "string" && !Number.isNaN(Date.parse(entry.updatedAt)) ? entry.updatedAt : date;
+  const mood = normalizeMood(entry.mood); // optional 1-5; omitted when absent or invalid
 
   const idCandidate = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "";
   const fallbackId = `${date}-${Math.abs(hashString(`${promptId}-${promptText}-${text}-${photoDataUrl}`))}`;
@@ -2109,6 +2190,7 @@ function normalizeEntry(entry) {
     photoRef,
     photoSynced: mode === "photo" ? photoSynced : true,
     updatedAt,
+    ...(mood ? { mood } : {}),
   };
 }
 

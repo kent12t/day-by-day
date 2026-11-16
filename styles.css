@@ -2085,3 +2085,439 @@ h2[tabindex]:focus:not(:focus-visible) {
     opacity: 1;
   }
 }
+
+/* ---------- mood & insights (issue #11) ---------- */
+/* a mood subtly softens or brightens a star in the crisp overlay; the painted sky is never touched */
+.atlas-star[data-mood="1"] .node { filter: brightness(0.8); }
+.atlas-star[data-mood="2"] .node { filter: brightness(0.9); }
+.atlas-star[data-mood="4"] .node { filter: brightness(1.12); }
+.atlas-star[data-mood="5"] .node { filter: brightness(1.25); }
+
+.head-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+}
+
+.mood-field .input-label {
+  margin-bottom: 0.5rem;
+}
+
+.optional-tag {
+  margin-left: 0.4rem;
+  color: var(--faint);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.mood-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.mood-btn {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  min-height: 3.6rem;
+  padding: 0.5rem 0.2rem 0.4rem;
+  border: 1px solid var(--line-cool);
+  border-radius: 16px;
+  background: rgba(12, 16, 40, 0.6);
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.mood-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.mood-btn[aria-pressed="true"] {
+  border-color: var(--gold);
+  background: rgba(233, 201, 142, 0.13);
+  color: var(--gold-bright);
+}
+
+.mood-glyph {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: block;
+  overflow: visible;
+}
+
+.mood-disc {
+  fill: rgba(12, 16, 40, 0.5);
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.mood-lit {
+  fill: currentColor;
+  stroke: none;
+}
+
+.mood-btn[aria-pressed="true"] .mood-glyph {
+  filter: drop-shadow(0 0 4px rgba(248, 223, 174, 0.6));
+}
+
+.mood-caption {
+  line-height: 1.1;
+}
+
+.mood-status {
+  margin: 0.4rem 0 0;
+  min-height: 1.3em;
+}
+
+.sheet-mood {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+
+.sheet-mood .mood-glyph {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.insights-sheet {
+  width: min(680px, 100vw);
+}
+
+.insights-body {
+  gap: 0.9rem;
+  padding-bottom: 0.3rem;
+}
+
+.insight-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.95rem 1rem 1rem;
+  border: 1px solid var(--line-cool);
+  border-radius: 18px;
+  background: rgba(12, 16, 40, 0.5);
+}
+
+.insight-title {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(233, 201, 142, 0.85);
+}
+
+.insight-sentence {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.insight-sentence.quiet {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.insight-action {
+  justify-self: start;
+}
+
+.balance-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.insight-wheel {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.wheel-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.wheel-ring.faint {
+  stroke-dasharray: 2 4;
+  opacity: 0.7;
+}
+
+.wheel-wedge {
+  stroke: rgba(5, 7, 26, 0.6);
+  stroke-width: 0.8;
+  fill-opacity: 0.92;
+}
+
+.wheel-notch {
+  fill: none;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2;
+  opacity: 0.55;
+}
+
+.wheel-total {
+  fill: var(--text);
+  font-family: var(--font-display);
+  font-size: 30px;
+}
+
+.wheel-unit {
+  fill: var(--muted);
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.balance-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 0.9rem;
+}
+
+.balance-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+  color: var(--text-soft);
+}
+
+.balance-item .topic-dot {
+  flex: 0 0 auto;
+}
+
+.balance-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.balance-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-wrap {
+  overflow-x: auto;
+}
+
+.heatmap {
+  border-collapse: separate;
+  border-spacing: 3px;
+  margin: 0 auto;
+}
+
+.heatmap th,
+.heatmap td {
+  padding: 0;
+  font-weight: 600;
+}
+
+.heat-month {
+  height: 1rem;
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.heat-day {
+  padding-right: 0.4rem;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.heat-cell {
+  width: 1.45rem;
+  height: 1.45rem;
+  text-align: center;
+  vertical-align: middle;
+  border-radius: 7px;
+  background: rgba(190, 202, 255, 0.05);
+}
+
+.heat-cell.future {
+  background: none;
+}
+
+.heat-cell.today {
+  box-shadow: 0 0 0 1.5px var(--gold-bright);
+}
+
+/* quiet = a faint ring, one reflection = a gold dot, more than one = a dot with a halo (shape, not just colour) */
+.heat-mark {
+  display: inline-block;
+  vertical-align: middle;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(190, 202, 255, 0.28);
+}
+
+[data-level="1"] > .heat-mark,
+.heat-mark[data-level="1"] {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+[data-level="2"] > .heat-mark,
+.heat-mark[data-level="2"] {
+  width: 0.78rem;
+  height: 0.78rem;
+  background: var(--gold-bright);
+  border: 2px solid rgba(255, 244, 214, 0.9);
+  box-shadow: 0 0 8px rgba(248, 223, 174, 0.7);
+}
+
+.heat-cell[data-level="1"] {
+  background: rgba(233, 201, 142, 0.14);
+}
+
+.heat-cell[data-level="2"] {
+  background: rgba(233, 201, 142, 0.24);
+}
+
+.heat-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.spark-frame {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.spark-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--muted);
+}
+
+.spark-scale .mood-glyph {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.mood-spark {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.spark-guide {
+  stroke: var(--line-cool);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.spark-line {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.spark-dot {
+  fill: var(--gold-bright);
+}
+
+.spark-dot.latest {
+  filter: drop-shadow(0 0 4px rgba(248, 223, 174, 0.9));
+}
+
+.memory-echoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.echo {
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--topic-color, var(--gold));
+}
+
+.echo p {
+  margin: 0;
+}
+
+.echo-kicker {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--topic-color, var(--gold));
+}
+
+.echo-date {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.echo-text {
+  font-size: 1.08rem;
+  line-height: 1.4;
+}
+
+.echo .insight-action {
+  margin-top: 0.3rem;
+}
+
+@media (max-width: 480px) {
+  .balance-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .insight-wheel {
+    max-width: 14rem;
+  }
+
+  .balance-legend {
+    width: 100%;
+  }
+
+  .heat-cell {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .mood-caption {
+    font-size: 0.78rem;
+  }
+}
