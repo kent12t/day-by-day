@@ -91,6 +91,7 @@
               <button id="usePromptBtn" class="primary-btn" type="button">Use this prompt</button>
               <button id="customizeFromBackBtn" class="ghost-btn subdued" type="button">Customize reflection</button>
               <button id="newPromptBtn" class="ghost-btn" type="button">Try another prompt</button>
+              <button id="writeOwnPromptBtn" class="ghost-btn subdued" type="button">Write my own prompt</button>
             </div>
           </div>
         </article>
@@ -99,6 +100,20 @@
           <div class="panel-top">
             <h2 id="customizeTitle">Customize</h2>
             <p id="customizeSubtitle">Shape your reflection flow.</p>
+          </div>
+
+          <div id="customPromptWrap" class="custom-prompt-wrap hidden">
+            <label class="input-label" for="customPromptInput">Your prompt</label>
+            <textarea
+              id="customPromptInput"
+              class="text-input"
+              rows="3"
+              maxlength="400"
+              aria-describedby="customPromptHint"
+              placeholder="What question do you want to sit with tonight?"
+            ></textarea>
+            <p id="customPromptHint" class="field-hint">Choose a topic below so it finds its place in your sky. Wildcard settles under Self.</p>
+            <button id="cancelCustomPromptBtn" class="ghost-btn subdued" type="button">Use a suggested prompt instead</button>
           </div>
 
           <div id="reflectionSettings" class="reflection-settings">
@@ -135,14 +150,28 @@
         <article class="card memories-panel">
           <div class="panel-top">
             <h2>Memories</h2>
-            <p>Recent moments in your sky.</p>
+            <p id="memoriesSummary">Every moment in your sky.</p>
           </div>
           <div class="memory-actions" role="group" aria-label="Backup controls">
             <button id="exportDataBtn" class="glass-btn" type="button">Export memories</button>
             <button id="importDataBtn" class="ghost-btn" type="button">Import memories</button>
             <input id="importDataInput" type="file" accept="application/json" class="hidden" />
           </div>
+          <div class="memory-toolbar">
+            <label class="sr-only" for="memorySearchInput">Search memories</label>
+            <input
+              id="memorySearchInput"
+              class="memory-search"
+              type="search"
+              placeholder="Search prompts and notes"
+              autocomplete="off"
+              aria-controls="historyList"
+            />
+            <div id="memoryTopicFilters" class="topic-list memory-filters" role="group" aria-label="Filter memories by topic"></div>
+          </div>
+          <p id="memoryResultsStatus" class="history-meta memory-results" role="status" aria-live="polite"></p>
           <div id="historyList" class="history-list"></div>
+          <button id="loadMoreMemoriesBtn" class="ghost-btn load-more-btn hidden" type="button">Show older memories</button>
         </article>
       </section>
     </main>
@@ -153,8 +182,64 @@
       <button class="nav-btn" data-go="memories" type="button">Memories</button>
     </nav>
 
-    <div id="confirmOverlay" class="confirm-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
-      <div class="confirm-modal">
+    <div id="memorySheetOverlay" class="sheet-overlay hidden">
+      <section
+        id="memorySheet"
+        class="memory-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="memorySheetTitle"
+        aria-describedby="memorySheetPrompt"
+      >
+        <header class="sheet-header">
+          <div>
+            <p id="memorySheetKicker" class="flip-kicker sheet-kicker"></p>
+            <h3 id="memorySheetTitle">Memory</h3>
+          </div>
+          <button id="closeMemorySheetBtn" class="sheet-close" type="button" aria-label="Close memory">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>
+          </button>
+        </header>
+
+        <div class="sheet-body">
+          <p id="memorySheetMeta" class="history-meta"></p>
+          <p id="memorySheetPrompt" class="sheet-prompt"></p>
+          <p id="memorySheetFollowUp" class="follow-up"></p>
+
+          <div id="memorySheetView" class="sheet-section">
+            <p id="memorySheetNoteLabel" class="input-label">Note</p>
+            <p id="memorySheetNote" class="sheet-note"></p>
+            <img id="memorySheetPhoto" class="sheet-photo hidden" alt="" />
+          </div>
+
+          <form id="memoryEditForm" class="sheet-section hidden" novalidate>
+            <label class="input-label" for="memoryEditText">Note</label>
+            <textarea id="memoryEditText" class="text-input" rows="5" placeholder="Add or refine your note..."></textarea>
+            <p class="input-label">Photo</p>
+            <img id="memoryEditPreview" class="photo-preview hidden" alt="Photo for this memory" />
+            <div class="photo-wrap">
+              <label class="sr-only" for="memoryEditPhoto">Choose a new photo</label>
+              <input id="memoryEditPhoto" type="file" accept="image/*" />
+            </div>
+            <button id="memoryRemovePhotoBtn" class="ghost-btn subdued hidden" type="button">Remove photo</button>
+          </form>
+        </div>
+
+        <footer class="sheet-actions">
+          <div id="memoryViewActions" class="sheet-action-row">
+            <button id="editMemoryBtn" class="glass-btn" type="button">Edit</button>
+            <button id="deleteMemoryBtn" class="danger-btn" type="button">Delete</button>
+          </div>
+          <div id="memoryEditActions" class="sheet-action-row hidden">
+            <button id="cancelEditMemoryBtn" class="ghost-btn" type="button">Cancel</button>
+            <button id="saveEditMemoryBtn" class="primary-btn" type="button">Save changes</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+
+    <div id="confirmOverlay" class="confirm-overlay hidden">
+      <div class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmText">
         <h3 id="confirmTitle">Delete memory?</h3>
         <p id="confirmText">This reflection will be removed from your memories and sky atlas.</p>
         <div class="confirm-actions">

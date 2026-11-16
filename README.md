@@ -43,7 +43,7 @@ npm run preview
 ```
 
 ## Privacy Note
-By default, all journal entries and photos are stored in your browser's local storage as stringified JSON and data URLs. Clearing your browser data will remove your entries unless you exported a backup.
+By default, journal entries are stored in your browser's local storage as JSON, and photos are compressed (max 1600px, WebP/JPEG) and stored in the browser's IndexedDB on this device. Clearing your browser data will remove your entries unless you exported a backup. Exports embed photos so a backup file is self-contained.
 
 Your entries are never sent to a server. Apart from loading its own bundled prompt library and the web fonts (Google Fonts), the app makes no network requests. Earlier versions offered optional cloud sync; that has been removed, and any leftover sync settings in your browser are cleaned up automatically.
 
