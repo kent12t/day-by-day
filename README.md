@@ -50,8 +50,8 @@ Your entries are never sent to a server. Apart from loading its own bundled prom
 ### Backup and Restore
 Export/import is the way to back up your journal or move it to another device.
 
-- Open **Memories** to export your current entries as a JSON backup file.
-- Use **Import memories** to restore or merge entries from a prior backup.
+- Open **Memories** and tap the gear icon (**Backup & restore**) to export your current entries as a JSON backup file.
+- Use **Import** in the same sheet to restore or merge entries from a prior backup.
 - Imports are validated and merged by entry ID to avoid accidental duplication.
 
 ---

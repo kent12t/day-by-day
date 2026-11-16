@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#070a1d" />
     <title>Day by Day</title>
     <link rel="icon" type="image/svg+xml" href="/moon-atlas-icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,88 +14,148 @@
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body data-view="atlas">
+    <a id="skipAtlasLink" class="skip-link" href="#memoriesHeading">Skip the atlas and view memories as a list</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+      <symbol id="i-recenter" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" /><circle cx="12" cy="12" r="1.6" class="fill" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" /></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.2l1.9 6.1 6.1 1.9-6.1 1.9L12 19.2l-1.9-6.1-6.1-1.9 6.1-1.9z" /><path d="M18.6 3.8v2.8M17.2 5.2H20" /></symbol>
+      <symbol id="i-atlas" viewBox="0 0 24 24"><path d="M4.5 17.5l4.5-6 4.5 3 6-9" /><circle cx="4.5" cy="17.5" r="1.5" class="fill" /><circle cx="9" cy="11.5" r="1.5" class="fill" /><circle cx="13.5" cy="14.5" r="1.5" class="fill" /><circle cx="19.5" cy="5.5" r="1.8" class="fill" /></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M3.5 5.8c2.9-1.2 5.9-1.1 8.5.6 2.6-1.7 5.6-1.8 8.5-.6v12.6c-2.9-1.1-5.9-1-8.5.6-2.6-1.6-5.6-1.7-8.5-.6z" /><path d="M12 6.4V19" /></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></symbol>
+      <symbol id="i-moon-quill" viewBox="0 0 32 32">
+        <path class="fill" d="M15.2 4.4a11.6 11.6 0 1 0 12.6 16.4A9.2 9.2 0 0 1 15.2 4.4z" />
+        <path class="fill" d="M28.6 3.2c-5.4 1.1-9.8 5.2-12 11.9l1.9 1c2.4-5 5.6-9.2 10.1-12.9z" />
+        <path class="ink" d="M16.9 15.8l-1.8 3.6" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" /></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15.5V4.5M7.5 9L12 4.5 16.5 9M5 19.5h14" /></symbol>
+    </svg>
+
     <div class="backdrop" aria-hidden="true"></div>
+
+    <section class="view atlas-view active" data-view="atlas" aria-label="Sky Atlas">
+      <div class="atlas-canvas" id="atlasStage">
+        <svg id="skyAtlas" viewBox="0 0 1000 620" role="group" aria-roledescription="star map" aria-label="Sky atlas of your reflections. Use the arrow keys to move between stars.">
+          <defs>
+            <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#080b1a" />
+              <stop offset="100%" stop-color="#111734" />
+            </linearGradient>
+            <filter
+              id="softGlow"
+              x="-250%"
+              y="-250%"
+              width="600%"
+              height="600%"
+              filterUnits="objectBoundingBox"
+              color-interpolation-filters="sRGB"
+            >
+              <feDropShadow dx="0" dy="0" stdDeviation="2.8" flood-color="#ffdba0" flood-opacity="0.62" />
+            </filter>
+            <filter id="nebulaBlur" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="16" />
+            </filter>
+          </defs>
+          <g id="worldLayer">
+            <rect id="skyBase" x="0" y="0" width="1600" height="900" fill="url(#skyGradient)"></rect>
+            <g id="atmosphereLayer"></g>
+            <g id="nebulaLayer"></g>
+            <g id="linkLayer"></g>
+            <g id="nodeLayer"></g>
+            <g id="eventLayer"></g>
+          </g>
+        </svg>
+        <div class="atlas-vignette" aria-hidden="true"></div>
+        <div id="atlasPopup" class="atlas-popup hidden"></div>
+      </div>
+
+      <div class="map-controls" role="toolbar" aria-label="Atlas controls" aria-orientation="vertical">
+        <div class="map-control-group">
+          <button id="zoomInBtn" class="map-btn" type="button" aria-label="Zoom in" data-tip="Zoom in">
+            <svg aria-hidden="true"><use href="#i-plus" /></svg>
+          </button>
+          <button id="zoomOutBtn" class="map-btn" type="button" aria-label="Zoom out" data-tip="Zoom out">
+            <svg aria-hidden="true"><use href="#i-minus" /></svg>
+          </button>
+        </div>
+        <button id="recenterBtn" class="map-btn solo" type="button" aria-label="Recenter the atlas" data-tip="Recenter">
+          <svg aria-hidden="true"><use href="#i-recenter" /></svg>
+        </button>
+        <button id="focusLatestBtn" class="map-btn solo" type="button" aria-label="Go to your latest star" data-tip="Latest star">
+          <svg aria-hidden="true"><use href="#i-spark" /></svg>
+        </button>
+      </div>
+
+      <p id="atlasHint" class="atlas-hint hidden" aria-hidden="true">Drag to roam · pinch to zoom · tap a star</p>
+    </section>
 
     <main class="app-shell">
       <header class="title-wrap">
         <h1>Day by Day</h1>
-        <p class="subtitle">A moonlit atlas shaped by your reflections.</p>
+        <p id="skyMeta" class="sky-meta">0 reflections</p>
       </header>
 
-      <section class="view active" data-view="atlas" aria-label="Sky Atlas view">
-        <article class="card sky-panel">
-          <div class="panel-top">
-            <h2>Sky Atlas</h2>
-            <p id="skyMeta">0 reflections so far</p>
-          </div>
-          <p class="helper-copy">Drag to roam. Pinch trackpad or use +/- for zoom.</p>
+      <section class="view reflect-view" data-view="reflect" aria-labelledby="reflectHeading">
+        <h2 id="reflectHeading" class="sr-only">Reflect</h2>
+        <div id="promptFlipCard" class="flip-card" aria-live="polite">
+          <div class="flip-inner">
+            <div class="flip-face flip-front">
+              <svg class="plate-motif" viewBox="0 0 200 300" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+                <g class="motif-rings">
+                  <circle cx="100" cy="128" r="70" />
+                  <circle cx="100" cy="128" r="62" class="dashed" />
+                  <circle cx="100" cy="128" r="30" />
+                  <path d="M100 50v10M100 196v10M22 128h10M168 128h10M45 73l7 7M148 176l7 7M155 73l-7 7M52 176l-7 7" />
+                </g>
+                <path class="motif-moon" d="M106 104a24 24 0 1 0 16 38 19.5 19.5 0 0 1-16-38z" />
+                <g class="motif-lines">
+                  <path d="M38 62L64 88 92 80 118 58 150 66 166 44" />
+                  <path d="M118 58L132 92" />
+                  <path d="M40 214L70 196 104 208 134 192 162 222" />
+                </g>
+                <g class="motif-stars">
+                  <circle cx="38" cy="62" r="1.7" /><circle cx="64" cy="88" r="2.3" /><circle cx="92" cy="80" r="1.6" />
+                  <circle cx="118" cy="58" r="2.6" /><circle cx="150" cy="66" r="1.8" /><circle cx="166" cy="44" r="2.2" />
+                  <circle cx="132" cy="92" r="1.5" /><circle cx="40" cy="214" r="1.8" /><circle cx="70" cy="196" r="2.4" />
+                  <circle cx="104" cy="208" r="1.6" /><circle cx="134" cy="192" r="2.1" /><circle cx="162" cy="222" r="1.7" />
+                </g>
+              </svg>
+              <span class="plate-corners" aria-hidden="true"></span>
+              <div class="plate-copy">
+                <p class="flip-kicker">Tonight&apos;s plate</p>
+                <p class="plate-title">Unfold a small wonder</p>
+                <p class="plate-hint">Turn the card when you are ready to meet a question worth sitting with.</p>
+              </div>
+            </div>
 
-          <div class="atlas-controls">
-            <button id="zoomOutBtn" class="glass-btn" type="button" aria-label="Zoom out">-</button>
-            <button id="recenterBtn" class="glass-btn" type="button">Recenter</button>
-            <button id="focusLatestBtn" class="glass-btn" type="button">Latest Star</button>
-            <button id="zoomInBtn" class="glass-btn" type="button" aria-label="Zoom in">+</button>
-          </div>
-
-          <div class="atlas-canvas">
-            <svg id="skyAtlas" viewBox="0 0 1000 620" role="img" aria-label="Procedural sky you can pan and zoom">
-              <defs>
-                <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#080b1a" />
-                  <stop offset="100%" stop-color="#111734" />
-                </linearGradient>
-                <filter
-                  id="softGlow"
-                  x="-250%"
-                  y="-250%"
-                  width="600%"
-                  height="600%"
-                  filterUnits="objectBoundingBox"
-                  color-interpolation-filters="sRGB"
-                >
-                  <feDropShadow dx="0" dy="0" stdDeviation="2.8" flood-color="#ffdba0" flood-opacity="0.62" />
-                </filter>
-                <filter id="nebulaBlur" x="-100%" y="-100%" width="300%" height="300%">
-                  <feGaussianBlur stdDeviation="16" />
-                </filter>
-              </defs>
-              <g id="worldLayer">
-                <rect id="skyBase" x="0" y="0" width="1600" height="900" fill="url(#skyGradient)"></rect>
-                <g id="atmosphereLayer"></g>
-                <g id="nebulaLayer"></g>
-                <g id="linkLayer"></g>
-                <g id="nodeLayer"></g>
-                <g id="eventLayer"></g>
-              </g>
-            </svg>
-            <div id="atlasPopup" class="atlas-popup hidden"></div>
-          </div>
-        </article>
-      </section>
-
-      <section class="view" data-view="reflect" aria-label="Reflect view">
-        <article id="promptFlipCard" class="card flip-card" aria-live="polite">
-          <div class="flip-face flip-front">
-            <p class="flip-kicker">Today&apos;s reflection</p>
-            <h2>Unfold a small wonder</h2>
-            <p class="helper-copy">Turn the card when you are ready to meet a question worth sitting with.</p>
-            <button id="revealPromptBtn" class="primary-btn" type="button">Reveal today&apos;s prompt</button>
-            <button id="customizeToggleBtn" class="ghost-btn subdued" type="button">Customize today&apos;s reflection</button>
-          </div>
-
-          <div class="flip-face flip-back">
-            <p id="promptKicker" class="flip-kicker">Prompt</p>
-            <p id="promptText" class="prompt-text">Take a breath, then reveal.</p>
-            <p id="followUpText" class="follow-up"></p>
-            <div class="prompt-actions">
-              <button id="usePromptBtn" class="primary-btn" type="button">Use this prompt</button>
-              <button id="customizeFromBackBtn" class="ghost-btn subdued" type="button">Customize reflection</button>
-              <button id="newPromptBtn" class="ghost-btn" type="button">Try another prompt</button>
-              <button id="writeOwnPromptBtn" class="ghost-btn subdued" type="button">Write my own prompt</button>
+            <div class="flip-face flip-back">
+              <span class="plate-corners" aria-hidden="true"></span>
+              <p id="promptKicker" class="flip-kicker prompt-kicker">Prompt</p>
+              <span class="plate-rule" aria-hidden="true"></span>
+              <p id="promptText" class="prompt-text">Take a breath, then reveal.</p>
+              <p id="followUpText" class="follow-up"></p>
+              <span class="plate-rule bottom" aria-hidden="true"></span>
             </div>
           </div>
-        </article>
+        </div>
+
+        <div class="reflect-actions front-actions">
+          <button id="revealPromptBtn" class="primary-btn" type="button">Turn the card</button>
+          <button id="customizeToggleBtn" class="secondary-btn" type="button">Choose a topic first</button>
+        </div>
+
+        <div class="reflect-actions back-actions">
+          <button id="usePromptBtn" class="primary-btn" type="button">Use this prompt</button>
+          <div class="action-pair">
+            <button id="newPromptBtn" class="secondary-btn" type="button">Another prompt</button>
+            <button id="customizeFromBackBtn" class="secondary-btn" type="button">Customize</button>
+          </div>
+          <button id="writeOwnPromptBtn" class="quiet-btn" type="button">Write my own prompt</button>
+        </div>
 
         <article id="customizePanel" class="card journal-panel hidden">
           <div class="panel-top">
@@ -113,7 +174,7 @@
               placeholder="What question do you want to sit with tonight?"
             ></textarea>
             <p id="customPromptHint" class="field-hint">Choose a topic below so it finds its place in your sky. Wildcard settles under Self.</p>
-            <button id="cancelCustomPromptBtn" class="ghost-btn subdued" type="button">Use a suggested prompt instead</button>
+            <button id="cancelCustomPromptBtn" class="quiet-btn" type="button">Use a suggested prompt instead</button>
           </div>
 
           <div id="reflectionSettings" class="reflection-settings">
@@ -146,16 +207,16 @@
         </article>
       </section>
 
-      <section class="view" data-view="memories" aria-label="Memories view">
-        <article class="card memories-panel">
-          <div class="panel-top">
-            <h2>Memories</h2>
-            <p id="memoriesSummary">Every moment in your sky.</p>
-          </div>
-          <div class="memory-actions" role="group" aria-label="Backup controls">
-            <button id="exportDataBtn" class="glass-btn" type="button">Export memories</button>
-            <button id="importDataBtn" class="ghost-btn" type="button">Import memories</button>
-            <input id="importDataInput" type="file" accept="application/json" class="hidden" />
+      <section class="view memories-view" data-view="memories" aria-labelledby="memoriesHeading">
+        <div class="memories-panel">
+          <div class="memories-head">
+            <div>
+              <h2 id="memoriesHeading" tabindex="-1">Memories</h2>
+              <p id="memoriesSummary" class="memories-summary">Every moment in your sky.</p>
+            </div>
+            <button id="openSettingsBtn" class="icon-btn" type="button" aria-label="Backup and restore" aria-haspopup="dialog" data-tip="Backup">
+              <svg aria-hidden="true"><use href="#i-gear" /></svg>
+            </button>
           </div>
           <div class="memory-toolbar">
             <label class="sr-only" for="memorySearchInput">Search memories</label>
@@ -171,16 +232,65 @@
           </div>
           <p id="memoryResultsStatus" class="history-meta memory-results" role="status" aria-live="polite"></p>
           <div id="historyList" class="history-list"></div>
-          <button id="loadMoreMemoriesBtn" class="ghost-btn load-more-btn hidden" type="button">Show older memories</button>
-        </article>
+          <button id="loadMoreMemoriesBtn" class="secondary-btn load-more-btn hidden" type="button">Show older memories</button>
+        </div>
       </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Primary">
-      <button class="nav-btn active" data-go="atlas" type="button">Atlas</button>
-      <button class="fab" data-go="reflect" type="button" aria-label="Add reflection"></button>
-      <button class="nav-btn" data-go="memories" type="button">Memories</button>
+      <button class="nav-btn active" data-go="atlas" type="button" aria-current="page">
+        <svg aria-hidden="true"><use href="#i-atlas" /></svg>
+        <span>Atlas</span>
+      </button>
+      <button class="fab" data-go="reflect" type="button" aria-label="Reflect: add tonight's reflection">
+        <span class="fab-disc" aria-hidden="true"><svg><use href="#i-moon-quill" /></svg></span>
+        <span class="fab-label" aria-hidden="true">Reflect</span>
+      </button>
+      <button class="nav-btn" data-go="memories" type="button">
+        <svg aria-hidden="true"><use href="#i-book" /></svg>
+        <span>Memories</span>
+      </button>
     </nav>
+
+    <div id="settingsOverlay" class="sheet-overlay hidden">
+      <section id="settingsSheet" class="memory-sheet settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-describedby="settingsIntro">
+        <header class="sheet-header">
+          <div>
+            <p class="flip-kicker sheet-kicker">Settings</p>
+            <h3 id="settingsTitle">Backup &amp; restore</h3>
+          </div>
+          <button id="closeSettingsBtn" class="sheet-close" type="button" aria-label="Close settings">
+            <svg aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div class="sheet-body">
+          <p id="settingsIntro" class="settings-intro">
+            Your journal lives only in this browser. Export a backup file to keep it safe or carry it to another device.
+          </p>
+          <div class="settings-row">
+            <div>
+              <p class="settings-label">Export memories</p>
+              <p id="exportSummary" class="settings-help">Saves a JSON file with every entry and photo.</p>
+            </div>
+            <button id="exportDataBtn" class="secondary-btn with-icon" type="button">
+              <svg aria-hidden="true"><use href="#i-download" /></svg>
+              Export
+            </button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <p class="settings-label">Import a backup</p>
+              <p class="settings-help">Merges entries by ID, so nothing is duplicated.</p>
+            </div>
+            <button id="importDataBtn" class="secondary-btn with-icon" type="button">
+              <svg aria-hidden="true"><use href="#i-upload" /></svg>
+              Import
+            </button>
+          </div>
+          <input id="importDataInput" type="file" accept="application/json" class="hidden" />
+        </div>
+      </section>
+    </div>
 
     <div id="memorySheetOverlay" class="sheet-overlay hidden">
       <section
@@ -197,7 +307,7 @@
             <h3 id="memorySheetTitle">Memory</h3>
           </div>
           <button id="closeMemorySheetBtn" class="sheet-close" type="button" aria-label="Close memory">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>
+            <svg aria-hidden="true"><use href="#i-close" /></svg>
           </button>
         </header>
 
@@ -221,17 +331,17 @@
               <label class="sr-only" for="memoryEditPhoto">Choose a new photo</label>
               <input id="memoryEditPhoto" type="file" accept="image/*" />
             </div>
-            <button id="memoryRemovePhotoBtn" class="ghost-btn subdued hidden" type="button">Remove photo</button>
+            <button id="memoryRemovePhotoBtn" class="quiet-btn hidden" type="button">Remove photo</button>
           </form>
         </div>
 
         <footer class="sheet-actions">
           <div id="memoryViewActions" class="sheet-action-row">
-            <button id="editMemoryBtn" class="glass-btn" type="button">Edit</button>
+            <button id="editMemoryBtn" class="secondary-btn" type="button">Edit</button>
             <button id="deleteMemoryBtn" class="danger-btn" type="button">Delete</button>
           </div>
           <div id="memoryEditActions" class="sheet-action-row hidden">
-            <button id="cancelEditMemoryBtn" class="ghost-btn" type="button">Cancel</button>
+            <button id="cancelEditMemoryBtn" class="secondary-btn" type="button">Cancel</button>
             <button id="saveEditMemoryBtn" class="primary-btn" type="button">Save changes</button>
           </div>
         </footer>
@@ -243,7 +353,7 @@
         <h3 id="confirmTitle">Delete memory?</h3>
         <p id="confirmText">This reflection will be removed from your memories and sky atlas.</p>
         <div class="confirm-actions">
-          <button id="cancelDeleteBtn" class="ghost-btn" type="button">Cancel</button>
+          <button id="cancelDeleteBtn" class="secondary-btn" type="button">Cancel</button>
           <button id="confirmDeleteBtn" class="danger-btn" type="button">Delete</button>
         </div>
       </div>
