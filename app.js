@@ -23,6 +23,8 @@ import { moodLabel, normalizeMood } from "./lib/insights.js";
 import { canvasToBlob, downloadBlob, renderAtlasPoster } from "./atlas/poster.js";
 import { createInsightsSheet } from "./ui/insights-sheet.js";
 import { createMoodGlyph, createMoodPicker } from "./ui/mood-picker.js";
+import { TOPIC_CENTERS } from "./shared/star-rules.js";
+import { initSharedSkyUi } from "./shared/shared-ui.js";
 import {
   chooseLeastUsedTopic,
   countEntriesOnDay,
@@ -57,19 +59,6 @@ const TOPIC_LABELS = {
   spirit: "Spirit",
   legacy: "Legacy",
   wildcard: "Wildcard",
-};
-
-const TOPIC_CENTERS = {
-  self: [0.22, 0.42],
-  relationships: [0.73, 0.37],
-  work: [0.62, 0.22],
-  body: [0.37, 0.61],
-  gratitude: [0.49, 0.43],
-  dreams: [0.79, 0.68],
-  creativity: [0.15, 0.75],
-  nature: [0.55, 0.85],
-  spirit: [0.10, 0.20],
-  legacy: [0.85, 0.15],
 };
 
 const DEPTHS = ["gentle", "deeper", "bold", "ethereal"];
@@ -246,6 +235,8 @@ const insightsSheet = createInsightsSheet({
   onReflectTopic: reflectOnTopic,
   onExportPoster: exportAtlasPoster,
 });
+// Opt-in anonymous shared sky (issue #3): inert unless a Convex URL is configured AND the person switched it on.
+const sharedSky = initSharedSkyUi({ world: { width: WORLD_WIDTH, height: WORLD_HEIGHT }, showToast: (message) => showToast(message) });
 
 init();
 
@@ -1092,6 +1083,7 @@ async function saveEntry() {
   }
 
   renderSkyAtlas(entry);
+  sharedSky.publishEntry(entry); // no-op unless sharing is on: sends only topic, depth and day
   renderMemoryFilters();
   renderHistory();
   pickPrompt();

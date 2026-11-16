@@ -67,6 +67,7 @@
             <rect id="skyBase" x="0" y="0" width="1600" height="900" fill="url(#skyGradient)"></rect>
             <g id="atmosphereLayer"></g>
             <g id="nebulaLayer"></g>
+            <g id="sharedLayer" aria-hidden="true" style="display: none"></g>
             <g id="linkLayer"></g>
             <g id="nodeLayer"></g>
             <g id="eventLayer"></g>
@@ -91,6 +92,11 @@
         <button id="focusLatestBtn" class="map-btn solo" type="button" aria-label="Go to your latest star" data-tip="Latest star">
           <svg aria-hidden="true"><use href="#i-spark" /></svg>
         </button>
+      </div>
+
+      <div id="sharedSkyBar" class="shared-sky-bar hidden">
+        <button id="sharedSkyChip" class="chip shared-chip" type="button" aria-pressed="true">Today's sky</button>
+        <p id="sharedSkyCount" class="shared-count hidden" role="status" aria-live="polite"></p>
       </div>
 
       <p id="atlasHint" class="atlas-hint hidden" aria-hidden="true">Drag to roam · pinch to zoom · tap a star</p>
@@ -300,6 +306,39 @@
             </button>
           </div>
           <input id="importDataInput" type="file" accept="application/json" class="hidden" />
+          <section id="sharedSkySection" class="shared-sky-section hidden" aria-labelledby="sharedSkyHeading">
+            <h4 id="sharedSkyHeading" class="settings-heading">Shared sky</h4>
+            <p id="sharedSkyDevNote" class="settings-help hidden">
+              Developer note: the shared sky is hidden because no <code>VITE_CONVEX_URL</code> was set at build time.
+            </p>
+            <div id="sharedSkyControls">
+              <div class="settings-row shared-switch-row">
+                <div>
+                  <p id="sharedSkyLabel" class="settings-label">Share my stars, anonymously</p>
+                  <p id="sharedSkyHelp" class="settings-help">
+                    Optional and off by default. See today's sky of other people's stars, and add yours.
+                  </p>
+                </div>
+                <button
+                  id="sharedSkySwitch"
+                  class="switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="false"
+                  aria-labelledby="sharedSkyLabel"
+                  aria-describedby="sharedSkyHelp sharedSkyFacts"
+                >
+                  <span class="switch-knob" aria-hidden="true"></span>
+                </button>
+              </div>
+              <div id="sharedSkyFacts" class="shared-facts">
+                <p><strong>What is shared:</strong> for each new reflection, one star with only its <em>topic</em>, its <em>depth</em> and the <em>day</em>, plus a random number for placing it, under a random anonymous code made on this device.</p>
+                <p><strong>Never shared:</strong> your words, photos, prompts, the time, your name or email, or any link to your journal. Stars are deleted after 3 days.</p>
+              </div>
+              <p id="sharedSkyStatus" class="settings-help shared-status" role="status" aria-live="polite"></p>
+              <button id="sharedSkyWithdrawBtn" class="secondary-btn shared-withdraw" type="button">Stop sharing &amp; remove my stars</button>
+            </div>
+          </section>
         </div>
       </section>
     </div>
@@ -386,6 +425,17 @@
         <div class="confirm-actions">
           <button id="cancelDeleteBtn" class="secondary-btn" type="button">Cancel</button>
           <button id="confirmDeleteBtn" class="danger-btn" type="button">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="sharedConfirmOverlay" class="confirm-overlay hidden">
+      <div class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="sharedConfirmTitle" aria-describedby="sharedConfirmText">
+        <h3 id="sharedConfirmTitle">Stop sharing?</h3>
+        <p id="sharedConfirmText">Sharing turns off and every star you shared is removed from the shared sky. Your journal is not touched.</p>
+        <div class="confirm-actions">
+          <button id="sharedConfirmCancel" class="secondary-btn" type="button">Cancel</button>
+          <button id="sharedConfirmOk" class="danger-btn" type="button">Remove my stars</button>
         </div>
       </div>
     </div>
